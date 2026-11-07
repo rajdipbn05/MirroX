@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; script-src 'self'" />
+    <title>MirroX bar</title>
+    <link rel="stylesheet" href="bar.css" />
+  </head>
+  <body>
+    <!-- Bar above the mirror window -->
+    <div id="bar">
+      <span class="logo" aria-hidden="true"></span>
+      <span id="name"></span>
+      <span id="fps"></span>
+      <span class="spacer"></span>
+      <button id="fullscreen" title="Fullscreen (Alt+F)">
+        <svg viewBox="0 0 16 16"><path d="M2.5 6V2.5H6M10 2.5h3.5V6M13.5 10v3.5H10M6 13.5H2.5V10" /></svg>
+        <span>Fullscreen</span>
+      </button>
+      <button id="stop" title="Stop mirroring">
+        <svg viewBox="0 0 16 16"><rect x="4" y="4" width="8" height="8" rx="1" /></svg>
+        <span>Stop</span>
+      </button>
+    </div>
+
+    <!-- Shown at the top of the screen in fullscreen -->
+    <div id="pill">
+      <button id="exit">
+        <svg viewBox="0 0 16 16"><path d="M6 2.5V6H2.5M10 2.5V6h3.5M13.5 10H10v3.5M6 13.5V10H2.5" /></svg>
+        <span>Exit fullscreen</span>
+      </button>
+    </div>
+    <script src="bar.js"></script>
+  </body>
+</html>

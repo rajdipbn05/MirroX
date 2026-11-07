@@ -1,6 +1,6 @@
 // Saves and loads the user's choices between launches:
 //   preset + custom performance settings, mirror-window settings (position/size, mode,
-//   always-on-top), one-time hints, and the classic-engine fallback switch.
+//   always-on-top), one-time hints, and whether to use the new (experimental) MirroX window.
 
 const fs = require('fs');
 const path = require('path');
@@ -33,7 +33,7 @@ function file() {
 }
 
 function defaults() {
-  return { ...JSON.parse(JSON.stringify(DEFAULT_SETTINGS)), window: JSON.parse(JSON.stringify(DEFAULT_WINDOW)), classic: false };
+  return { ...JSON.parse(JSON.stringify(DEFAULT_SETTINGS)), window: JSON.parse(JSON.stringify(DEFAULT_WINDOW)), newWindow: false };
 }
 
 function load() {
@@ -43,7 +43,7 @@ function load() {
       preset: raw.preset === 'custom' || PRESETS[raw.preset] ? raw.preset : DEFAULT_SETTINGS.preset,
       custom: sanitize({ ...DEFAULT_SETTINGS.custom, ...(raw.custom || {}) }),
       window: pickWindow(raw.window),
-      classic: !!raw.classic,
+      newWindow: !!raw.newWindow, // default off: the scrcpy window + MirroX bar is the default
     };
   } catch {
     return defaults();

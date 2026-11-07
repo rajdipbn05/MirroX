@@ -60,6 +60,8 @@ jobs:
         run: node scripts/smoke-test.js --fake-conflict dist/win-unpacked/MirroX.exe
       - name: Mirror window with a pretend phone (video, clicks, keys, window modes)
         run: node scripts/smoke-test.js --fake-phone dist/win-unpacked/MirroX.exe
+      - name: Bar on top of the mirror window (follows it, Fullscreen button, exit)
+        run: node scripts/smoke-test.js --bar dist/win-unpacked/MirroX.exe
       - uses: actions/upload-artifact@v4
         if: always()
         with:

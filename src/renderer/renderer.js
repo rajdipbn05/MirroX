@@ -207,7 +207,7 @@ function renderSettings() {
   $('fps-val').textContent = `${v.maxFps} FPS`;
   $('orientation').value = v.orientation;
   for (const f of FIELDS) $(f).checked = !!v[f];
-  $('classic').checked = !!settings.classic;
+  $('newWindow').checked = !!settings.newWindow;
 }
 
 // ---------- Window quick toggles ----------
@@ -220,13 +220,17 @@ function renderWindow() {
 async function setWindow(w) {
   windowState = await window.mirrox.setWindow(w);
   renderWindow();
+  if (windowState.restart) {
+    showNote('Borderless and Always on top apply when mirroring starts. Restart mirroring to use them.');
+    $('restart-btn').hidden = false;
+  }
 }
 
 // Fullscreen and Borderless are alternatives: clicking the active one returns to a normal window.
 $('win-fullscreen').addEventListener('click', () => setWindow({ mode: windowState.mode === 'fullscreen' ? 'normal' : 'fullscreen' }));
 $('win-borderless').addEventListener('click', () => setWindow({ mode: windowState.mode === 'borderless' ? 'normal' : 'borderless' }));
 $('win-top').addEventListener('click', () => setWindow({ alwaysOnTop: !windowState.alwaysOnTop }));
-$('classic').addEventListener('change', () => saveSettings({ preset: cfg.settings.preset, classic: $('classic').checked }));
+$('newWindow').addEventListener('change', () => saveSettings({ preset: cfg.settings.preset, newWindow: $('newWindow').checked }));
 window.mirrox.onWindowState((w) => {
   windowState = w;
   renderWindow();

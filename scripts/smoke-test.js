@@ -7,6 +7,9 @@
 //                        -> MirroX must still work ("No phone found")
 //   --fake-conflict      a program named DouWan.exe is running and MirroX's own helper port
 //                        is jammed -> MirroX must name DouWan as the blocker and offer to close it
+//   --bar                (Windows) a stand-in for scrcpy's window that goes fullscreen on Alt+F:
+//                        the MirroX bar must sit on top of it, its Fullscreen button must work,
+//                        the bar must hide in fullscreen and the Exit button must bring it back
 //   --fake-phone         a pretend phone (scripts/fake-phone-server.js) streams video + sound:
 //                        the mirror window must show frames, send clicks/keys to the "phone",
 //                        and switch window modes with its buttons and Alt+F
@@ -195,6 +198,89 @@ async function fakePhoneTest() {
   process.exit(0);
 }
 
+// ---------- --bar scenario ----------
+const FAKE_SCRCPY_WINDOW = `
+Add-Type -AssemblyName System.Windows.Forms
+$f = New-Object Windows.Forms.Form
+$f.Text = 'Fake scrcpy window'
+$f.StartPosition = 'Manual'; $f.Left = 300; $f.Top = 250; $f.Width = 420; $f.Height = 640
+$f.BackColor = 'Black'
+$f.KeyPreview = $true
+$f.Add_KeyDown({ param($s, $e)
+  if ($e.Alt -and $e.KeyCode -eq 'F') {
+    if ($s.FormBorderStyle -eq 'None') { $s.WindowState = 'Normal'; $s.FormBorderStyle = 'Sizable' }
+    else { $s.FormBorderStyle = 'None'; $s.WindowState = 'Maximized' }
+    $e.Handled = $true; $e.SuppressKeyPress = $true
+  }
+})
+[Windows.Forms.Application]::Run($f)
+`;
+
+async function barTest() {
+  const fake = spawn('powershell.exe', ['-NoProfile', '-EncodedCommand', Buffer.from(FAKE_SCRCPY_WINDOW, 'utf16le').toString('base64')], { stdio: 'ignore' });
+  cleanups.push(() => fake.kill());
+  await new Promise((r) => setTimeout(r, 4000));
+  const app = await _electron.launch({ executablePath: exe, args: appArgs, timeout: 60000, env: { ...process.env, MIRROX_TEST_BAR_PID: String(fake.pid) } });
+  cleanups.push(() => app.process().kill());
+  const main = await app.firstWindow();
+  const results = {};
+  const check = (name, ok, info = '') => (results[name] = ok ? 'ok' : `FAILED ${info}`);
+  const barState = () => app.evaluate(({ BrowserWindow }) => {
+    const w = BrowserWindow.getAllWindows().find((x) => /bar\.html\?pill=0/.test(x.webContents.getURL()));
+    return w ? { visible: w.isVisible(), bounds: w.getBounds() } : null;
+  });
+  const waitFor = async (fn, ms = 10000) => {
+    const until = Date.now() + ms;
+    let v;
+    while (Date.now() < until) {
+      v = await fn();
+      if (v && v.ok) return v;
+      await main.waitForTimeout(250);
+    }
+    return v || {};
+  };
+
+  // 1. Bar appears on top of the window (form at x=300, y=250; allow for frame/border differences).
+  const placed = await waitFor(async () => {
+    const b = await barState();
+    return { ok: !!b && b.visible && Math.abs(b.bounds.x - 300) <= 16 && Math.abs(b.bounds.y + b.bounds.height - 250) <= 16, b };
+  });
+  check('bar sits on top of the mirror window', placed.ok, JSON.stringify(placed.b));
+  const barPage = app.windows().find((w) => /bar\.html\?pill=0/.test(w.url()));
+  if (barPage) await barPage.screenshot({ path: 'smoke-bar.png' }).catch(() => {});
+  check('bar shows the phone name', barPage && (await barPage.textContent('#name')) === 'Test phone');
+
+  // 2. Fullscreen button -> Alt+F to the window -> it goes fullscreen -> bar hides.
+  if (barPage) await barPage.click('#fullscreen');
+  const hidden = await waitFor(async () => {
+    const b = await barState();
+    return { ok: !!b && !b.visible, b };
+  });
+  check('Fullscreen button works and bar hides in fullscreen', hidden.ok, JSON.stringify(hidden.b));
+
+  // 3. "Exit fullscreen" (the top-edge button) -> back to a normal window -> bar returns.
+  const pillPage = app.windows().find((w) => /bar\.html\?pill=1/.test(w.url()));
+  if (pillPage) await pillPage.evaluate(() => document.getElementById('exit').click());
+  const back = await waitFor(async () => {
+    const b = await barState();
+    return { ok: !!b && b.visible && Math.abs(b.bounds.y + b.bounds.height - 250) <= 16, b };
+  });
+  check('Exit fullscreen brings the bar back', back.ok, JSON.stringify(back.b));
+
+  const report = 'scenario: --bar\n' + Object.entries(results).map(([k, v]) => `${k}: ${v}`).join('\n');
+  out(report);
+  if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, '```\n' + report + '\n```\n');
+  await Promise.race([app.close().catch(() => {}), new Promise((r) => setTimeout(r, 8000))]);
+  if (Object.values(results).some((v) => v !== 'ok')) fail('Bar test failed', report);
+  for (const c of cleanups) {
+    try {
+      c();
+    } catch {}
+  }
+  out('Smoke test passed (--bar).');
+  process.exit(0);
+}
+
 const EXPECT = {
   default: (r) => r.title === 'No phone found' && !r.details,
   '--block-default-port': (r) => r.title === 'No phone found' && !r.details,
@@ -203,6 +289,7 @@ const EXPECT = {
 
 (async () => {
   if (scenario === '--fake-phone') return fakePhoneTest();
+  if (scenario === '--bar') return barTest();
   if (!EXPECT[scenario]) fail('Bad scenario', scenario);
   let douwan;
   if (scenario === '--block-default-port') await jamPort(5037);

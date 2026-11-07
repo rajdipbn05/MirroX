@@ -74,6 +74,7 @@ class Mirror extends EventEmitter {
       env: { ...adbEnv(), ADB: engines.adbPath() },
     });
     this.proc = proc;
+    this.deviceName = device.name;
 
     const onOutput = (chunk) => {
       const text = chunk.toString();

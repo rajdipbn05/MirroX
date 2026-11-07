@@ -3,7 +3,8 @@
 const path = require('path');
 const { app, BrowserWindow, ipcMain, clipboard, shell } = require('electron');
 const { DeviceWatcher } = require('./android/devices');
-const { Mirror } = require('./android/mirror'); // classic engine (scrcpy's own window), kept as a fallback
+const { Mirror } = require('./android/mirror'); // default engine: scrcpy's own window (+ MirroX bar on top)
+const { ClassicBar } = require('./classic-bar');
 const { adb } = require('./android/adb');
 const platform = require('./platform');
 const settingsStore = require('./settings');
@@ -14,6 +15,7 @@ let win;
 let settings; // loaded once the app is ready
 const watcher = new DeviceWatcher();
 const classic = new Mirror();
+const bar = new ClassicBar(); // the bar with the Fullscreen button above scrcpy's window
 let controller; // created once the app is ready (needs the screen module)
 let active = null; // the engine currently mirroring: controller or classic
 
@@ -55,7 +57,7 @@ function createWindow() {
 }
 
 function engineFor() {
-  return settings.classic ? classic : controller;
+  return settings.newWindow ? controller : classic;
 }
 
 function startMirror() {
@@ -89,12 +91,20 @@ app.whenReady().then(() => {
     engine.on('stats', (s) => send('mirror-stats', s));
   }
   controller.on('window', (w) => send('window-state', w));
+
+  // Bar on top of scrcpy's window: attach once the mirror window is up, remove when it ends.
+  classic.on('state', (s) => {
+    if (s.state === 'running' && classic.proc) bar.attach(classic.proc.pid, classic.deviceName || 'Phone');
+    if (s.state === 'stopped' || s.state === 'error') bar.detach();
+  });
+  classic.on('stats', (s) => bar.setStats(s));
+  bar.on('action', (a) => a === 'stop' && stopMirror());
   watcher.start();
 
   ipcMain.handle('get-state', () => ({
     phone: watcher.current,
     version: app.getVersion(),
-    settings: { preset: settings.preset, custom: settings.custom, classic: settings.classic },
+    settings: { preset: settings.preset, custom: settings.custom, newWindow: settings.newWindow },
     window: controller.modeInfo(),
     presets: presets.PRESETS,
     choices: {
@@ -110,20 +120,31 @@ app.whenReady().then(() => {
     const preset = next.preset === 'custom' || presets.PRESETS[next.preset] ? next.preset : settings.preset;
     settings.preset = preset;
     settings.custom = presets.sanitize({ ...settings.custom, ...(next.custom || {}) });
-    if (typeof next.classic === 'boolean') settings.classic = next.classic;
+    if (typeof next.newWindow === 'boolean') settings.newWindow = next.newWindow;
     saveSettings();
-    return { preset: settings.preset, custom: settings.custom, classic: settings.classic };
+    return { preset: settings.preset, custom: settings.custom, newWindow: settings.newWindow };
   });
 
   // Window options: applied right away to an open mirror window, otherwise remembered for next time.
   ipcMain.handle('set-window', (_e, w) => {
+    const before = controller.modeInfo();
     if (typeof w.alwaysOnTop === 'boolean') controller.setAlwaysOnTop(w.alwaysOnTop);
     if (typeof w.mode === 'string') controller.setMode(w.mode);
-    return controller.modeInfo();
+    const after = controller.modeInfo();
+    // scrcpy's window: fullscreen can be switched live (Alt+F); borderless / always-on-top
+    // only take effect when mirroring is restarted.
+    if (classic.running) {
+      const fsChanged = (before.mode === 'fullscreen') !== (after.mode === 'fullscreen');
+      const otherChanged = (before.mode === 'borderless') !== (after.mode === 'borderless') || before.alwaysOnTop !== after.alwaysOnTop;
+      if (fsChanged) bar.toggleFullscreen();
+      if (otherChanged) return { ...after, restart: true };
+    }
+    return after;
   });
 
   ipcMain.handle('start-mirror', startMirror);
   ipcMain.handle('restart-mirror', () => {
+    bar.detach();
     const engine = active;
     if (!engine || !engine.running) return startMirror();
     engine.once('state', (st) => st.state !== 'starting' && setTimeout(startMirror, 500));
@@ -145,6 +166,9 @@ app.whenReady().then(() => {
     watcher.refreshSoon();
     return result;
   });
+
+  // Automated tests: attach the bar to a stand-in window (scripts/smoke-test.js --bar).
+  if (process.env.MIRROX_TEST_BAR_PID) bar.attach(Number(process.env.MIRROX_TEST_BAR_PID), 'Test phone');
 
   // Automated tests: open the mirror window against a fake phone server.
   if (process.env.MIRROX_TEST_MIRROR_PORT) win.webContents.once('did-finish-load', () => setTimeout(startMirror, 500));
