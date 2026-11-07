@@ -170,3 +170,15 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .toggle input { width: 16px; height: 16px; accent-color: var(--accent); }
 #restart-btn { margin-top: 10px; }
 #note-message { white-space: pre-line; }
+
+/* Window quick toggles */
+.window-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.window-label { font-size: 13px; color: var(--muted); margin-right: 2px; }
+.chip {
+  padding: 6px 11px; border-radius: 999px; cursor: pointer;
+  background: var(--card-2); color: var(--muted); border: 1px solid var(--border);
+  font: inherit; font-size: 13px; font-weight: 600;
+}
+.chip:hover { color: var(--text); }
+.chip[aria-pressed="true"] { color: white; background: color-mix(in srgb, var(--accent) 30%, transparent); border-color: var(--accent); }
+.toggle.classic { color: var(--muted); font-size: 13px; }

@@ -1,27 +1,43 @@
-// MirroX main process: owns the window, watches for phones, and runs the mirroring engine.
+// MirroX main process: owns the windows, watches for phones, and runs mirroring.
 
 const path = require('path');
-const { app, BrowserWindow, ipcMain, clipboard, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, clipboard, shell, screen } = require('electron');
 const { DeviceWatcher } = require('./android/devices');
-const { Mirror } = require('./android/mirror');
+const { Mirror } = require('./android/mirror'); // classic engine (scrcpy's own window), kept as a fallback
 const { adb } = require('./android/adb');
 const platform = require('./platform');
 const settingsStore = require('./settings');
 const presets = require('./android/presets');
+const { MirrorController, listDisplays } = require('./mirror-window');
 
 let win;
-const watcher = new DeviceWatcher();
-const mirror = new Mirror();
 let settings; // loaded once the app is ready
+const watcher = new DeviceWatcher();
+const classic = new Mirror();
+let controller; // created once the app is ready (needs the screen module)
+let active = null; // the engine currently mirroring: controller or classic
 
 function send(channel, payload) {
   if (win && !win.isDestroyed()) win.webContents.send(channel, payload);
 }
 
+function saveSettings() {
+  settingsStore.save(settings);
+}
+
+// Settings store for the mirror window (monitor, always-on-top, bounds/mode per monitor, hints).
+const windowStore = {
+  get: () => settings.window,
+  set: (partial) => {
+    settings.window = { ...settings.window, ...partial };
+    saveSettings();
+  },
+};
+
 function createWindow() {
   win = new BrowserWindow({
     width: 560,
-    height: 800,
+    height: 820,
     minWidth: 460,
     minHeight: 600,
     title: 'MirroX',
@@ -34,20 +50,55 @@ function createWindow() {
     },
   });
   win.loadFile(path.join(__dirname, '..', 'renderer', 'index.html'));
+  // Closing the main window closes MirroX (including any mirror window).
+  win.on('closed', () => app.quit());
+}
+
+function engineFor() {
+  return settings.classic ? classic : controller;
+}
+
+function startMirror() {
+  const s = watcher.current;
+  const testPort = Number(process.env.MIRROX_TEST_MIRROR_PORT) || 0; // automated tests only
+  if (!testPort && !(s && s.ready)) return;
+  if ((active && active.running) || controller.running || classic.running) return;
+  const perf = presets.effectiveSettings(settings);
+  active = testPort ? controller : engineFor();
+  if (active === classic) {
+    const w = controller.windowInfo();
+    classic.start({ serial: s.serial, name: s.name }, { ...perf, fullscreen: w.mode === 'fullscreen', borderless: w.mode === 'borderless', alwaysOnTop: w.alwaysOnTop });
+  } else {
+    controller.start(testPort ? { testPort, name: 'Test phone' } : { serial: s.serial, name: s.name }, perf);
+  }
+}
+
+function stopMirror() {
+  controller.stop();
+  classic.stop();
 }
 
 app.whenReady().then(() => {
   settings = settingsStore.load();
+  controller = new MirrorController(windowStore);
   createWindow();
+
   watcher.on('change', (state) => send('phone-state', state));
-  mirror.on('state', (s) => send('mirror-state', s));
-  mirror.on('stats', (s) => send('mirror-stats', s));
+  for (const engine of [controller, classic]) {
+    engine.on('state', (s) => send('mirror-state', s));
+    engine.on('stats', (s) => send('mirror-stats', s));
+  }
+  controller.on('window', (w) => send('window-state', w));
+  screen.on('display-added', () => send('displays', listDisplays()));
+  screen.on('display-removed', () => send('displays', listDisplays()));
   watcher.start();
 
   ipcMain.handle('get-state', () => ({
     phone: watcher.current,
     version: app.getVersion(),
-    settings,
+    settings: { preset: settings.preset, custom: settings.custom, classic: settings.classic },
+    window: controller.windowInfo(),
+    displays: listDisplays(),
     presets: presets.PRESETS,
     choices: {
       resolutions: presets.RESOLUTIONS,
@@ -60,22 +111,29 @@ app.whenReady().then(() => {
   // Saves the preset choice / custom values; returns what is now saved.
   ipcMain.handle('set-settings', (_e, next) => {
     const preset = next.preset === 'custom' || presets.PRESETS[next.preset] ? next.preset : settings.preset;
-    settings = { preset, custom: presets.sanitize({ ...settings.custom, ...(next.custom || {}) }) };
-    settingsStore.save(settings);
-    return settings;
+    settings.preset = preset;
+    settings.custom = presets.sanitize({ ...settings.custom, ...(next.custom || {}) });
+    if (typeof next.classic === 'boolean') settings.classic = next.classic;
+    saveSettings();
+    return { preset: settings.preset, custom: settings.custom, classic: settings.classic };
   });
 
-  const startMirror = () => {
-    const s = watcher.current;
-    if (s && s.ready) mirror.start({ serial: s.serial, name: s.name }, presets.effectiveSettings(settings));
-  };
+  // Window options: applied right away to an open mirror window, otherwise remembered for next time.
+  ipcMain.handle('set-window', (_e, w) => {
+    if (typeof w.monitor === 'string') windowStore.set({ monitor: w.monitor });
+    if (typeof w.alwaysOnTop === 'boolean') controller.setAlwaysOnTop(w.alwaysOnTop);
+    if (typeof w.mode === 'string') controller.setMode(w.mode);
+    return controller.windowInfo(controller.win ? controller.mode : undefined);
+  });
+
   ipcMain.handle('start-mirror', startMirror);
   ipcMain.handle('restart-mirror', () => {
-    if (!mirror.running) return startMirror();
-    mirror.once('state', (st) => st.state !== 'starting' && setTimeout(startMirror, 500));
-    mirror.stop();
+    const engine = active;
+    if (!engine || !engine.running) return startMirror();
+    engine.once('state', (st) => st.state !== 'starting' && setTimeout(startMirror, 500));
+    engine.stop();
   });
-  ipcMain.handle('stop-mirror', () => mirror.stop());
+  ipcMain.handle('stop-mirror', stopMirror);
 
   ipcMain.handle('copy-text', (_e, text) => clipboard.writeText(String(text)));
 
@@ -91,13 +149,16 @@ app.whenReady().then(() => {
     watcher.refreshSoon();
     return result;
   });
+
+  // Automated tests: open the mirror window against a fake phone server.
+  if (process.env.MIRROX_TEST_MIRROR_PORT) win.webContents.once('did-finish-load', () => setTimeout(startMirror, 500));
 });
 
 app.on('window-all-closed', () => app.quit());
 
 app.on('before-quit', () => {
   watcher.stop();
-  mirror.stop();
+  stopMirror();
   // Stop the background ADB helper so it doesn't keep running after MirroX closes.
   adb(['kill-server'], { timeout: 3000 }).catch(() => {});
 });

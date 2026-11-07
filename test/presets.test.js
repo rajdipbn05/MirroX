@@ -5,11 +5,20 @@ const { parseStats } = require('../src/main/android/mirror');
 
 const dev = { serial: 'ZY22', name: 'moto g57 power' };
 
-test('Gaming preset: high fps, high bitrate, fullscreen, borderless, low-delay', () => {
+test('Gaming preset: high fps, high bitrate, low-delay — and NOT fullscreen/borderless', () => {
   const args = buildArgs(dev, effectiveSettings({ preset: 'gaming' }));
-  for (const a of ['--max-fps=120', '--video-bit-rate=16M', '--max-size=1920', '--fullscreen', '--window-borderless', '--video-codec=h264', '--video-codec-options=priority:int=0', '--print-fps', '--serial=ZY22'])
+  for (const a of ['--max-fps=120', '--video-bit-rate=16M', '--max-size=1920', '--video-codec=h264', '--video-codec-options=priority:int=0', '--print-fps', '--serial=ZY22'])
     assert.ok(args.includes(a), a);
   assert.ok(!args.includes('--no-audio'));
+  assert.ok(!args.includes('--fullscreen'));
+  assert.ok(!args.includes('--window-borderless'));
+});
+
+test('no preset turns on fullscreen, borderless or always-on-top', () => {
+  for (const p of Object.values(PRESETS)) {
+    const s = effectiveSettings({ preset: Object.keys(PRESETS).find((k) => PRESETS[k] === p) });
+    assert.ok(!s.fullscreen && !s.borderless && !s.alwaysOnTop);
+  }
 });
 
 test('Normal preset: windowed, 60 fps, no codec tweaks', () => {
@@ -36,7 +45,8 @@ test('custom settings are used and kept in range', () => {
 
 test('damaged settings fall back safely', () => {
   assert.deepStrictEqual(sanitize({}).maxFps, 60);
-  assert.ok(effectiveSettings(null).fullscreen); // default = Gaming
+  assert.strictEqual(effectiveSettings(null).maxFps, 120); // default = Gaming
+  assert.ok(!effectiveSettings(null).fullscreen);
 });
 
 test('reads FPS and picture size from scrcpy output', () => {

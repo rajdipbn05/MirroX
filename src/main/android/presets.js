@@ -10,15 +10,12 @@ const BITRATE_MAX = 40; // Mbps
 const PRESETS = {
   gaming: {
     label: 'Gaming',
-    description: 'Lowest delay and highest frame rate. Landscape, fullscreen.',
+    description: 'Lowest delay and highest frame rate. Turns the phone to landscape.',
     settings: {
       maxSize: 1920,
       bitrate: 16,
       maxFps: 120,
       orientation: 'landscape',
-      fullscreen: true,
-      borderless: true,
-      alwaysOnTop: false,
       audio: true,
       screenOff: false,
       lowLatency: true,
@@ -32,9 +29,6 @@ const PRESETS = {
       bitrate: 8,
       maxFps: 60,
       orientation: 'auto',
-      fullscreen: false,
-      borderless: false,
-      alwaysOnTop: false,
       audio: true,
       screenOff: false,
       lowLatency: false,
@@ -69,7 +63,10 @@ function sanitize(v) {
   };
 }
 
-// scrcpy command-line options for the given settings.
+// Window options (fullscreen / borderless / always-on-top) are NOT part of presets: they are
+// mirror-window settings, off by default, and only used here by the classic engine.
+
+// scrcpy command-line options for the given settings (classic engine).
 function buildArgs({ serial, name }, settings, { codecOptions = true } = {}) {
   const s = sanitize(settings);
   const args = [

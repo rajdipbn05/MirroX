@@ -25,15 +25,16 @@ This page shows what is done and what comes next. It is updated after every stag
 | 0 | Confirm your setup | Windows 11 24H2 · Samsung Galaxy S23 (Android 14) · Motorola g57 power (Android 17) · iPhones for Phase 2 | ✅ |
 | 1 | Basic mirror | Plug in phone → app shows its name → click a button → phone screen appears in a window | ✅ Tested on Motorola g57 power: all 7 steps worked, sound works |
 | 2 | Proper interface + clear statuses | New main screen. Statuses: Connected / USB Debugging off / Waiting for permission on phone / Driver missing / Another app is blocking. Names the blocking app (DouWan, ApowerMirror, Vysor, BlueStacks…) with a "Close it for me" button. "Show details" on every problem. Brand-specific "How to turn on USB Debugging" guide | ✅ Tested on both phones (v0.2.0) |
-| 3 | Presets — smoothness first | "Gaming" (120 FPS max, 16 Mbps, 1920 px, phone turned to landscape, fullscreen + borderless, low-delay encoder) and "Normal" (60 FPS, 8 Mbps, windowed). Live FPS shown while mirroring | 🧪 |
+| 3 | Presets — smoothness first | "Gaming" (120 FPS max, 16 Mbps, 1920 px, phone turned to landscape, low-delay encoder) and "Normal" (60 FPS, 8 Mbps). Live FPS shown while mirroring. *Window options are no longer part of presets (see 3b).* | 🧪 waiting for your FPS/delay numbers |
+| 3b | Mirror window (your 7 window fixes) | MirroX now draws the phone screen in **its own window** (scrcpy still captures/encodes on the phone). Opens as a normal, movable, resizable window sized to the phone's shape — never fullscreen/borderless by default. Title bar with Borderless / Fullscreen / Always-on-top / minimize / fit / close. Borderless: move the mouse to the top edge for a drag handle + buttons; resize from edges; shape kept. Fullscreen: toolbar at the top edge (Exit fullscreen, Borderless, Minimize, On top, Close), Esc, Alt+F, double-click the toolbar, one-time hint. Alt+F toggles normal ↔ last used (fullscreen or borderless). "Open mirror on" monitor choice. Position, size and mode remembered per monitor. "Window" quick toggles on the main screen. Classic scrcpy window kept as a fallback in Advanced. | 🧪 |
 | 4 | Advanced panel | Sliders for resolution, quality (bitrate), max FPS; rotation; switches for fullscreen, borderless, always-on-top, phone sound, low-delay mode, phone screen off. Built together with Stage 3 | 🧪 |
 | 5 | First-time setup walk-through | Opens on first launch; guides step by step through USB Debugging with progress, building on the Stage 2 guide | ⏳ |
-| 6 | Window controls | Fullscreen, borderless, always-on-top and rotation are now in Advanced settings (Stage 3). Still to do: change them *while* mirroring without restarting | 🔨 partly done |
+| 6 | Window controls | Done in Stage 3b, and they now work *while* mirroring without a restart | 🧪 (with 3b) |
 | 7 | Phone audio switch | "Phone sound" switch added in Advanced settings (Stage 3) | 🧪 |
 | 8 | Keyboard & mouse control switch | Control already works; add an on/off switch | ⏳ |
 | 9 | Game key mapping | Place keys (W, A, S, D, Space…) on spots of the phone screen to play games with the keyboard; save layouts per game | ⏳ |
 | 10 | Record & screenshot | Record the mirror with sound to an MP4 video; one-click screenshot | ⏳ |
-| 11 | Remember settings | Preset and Advanced settings are remembered (Stage 3). Window size/position etc. later | 🔨 partly done |
+| 11 | Remember settings | Preset, Advanced settings, mirror window position/size/mode per monitor, monitor choice, always-on-top | 🧪 (with 3b) |
 | 12 | Package as one file | Signed portable `.exe` + installer; tested on a clean PC | ⏳ |
 
 **Always-on rules (every stage):**
@@ -79,3 +80,5 @@ Phone audio needs Android 11+, so every target phone supports it.
 - **2026-11-07** — v0.2.0 passed all three Windows tests (no phone, blocked port 5037, fake DouWan) and is published. Waiting for your Stage 2 test.
 - **2026-11-07** — Stage 2 confirmed on both phones.
 - **2026-11-07** — Stage 3 built (v0.3.0): Gaming / Normal / Custom presets, Advanced settings, live FPS counter, settings remembered. Waiting for your smoothness numbers.
+- **2026-11-07** — v0.3.0 window problems reported (Gaming opened fullscreen/borderless; hard to leave; no monitor choice).
+- **2026-11-07** — v0.4.0 (Stage 3b): new MirroX mirror window replacing scrcpy's window, with all 7 requested window fixes. Tested here and on GitHub's Windows machine with a pretend phone: video at ~60 FPS, clicks/keys reach the phone, Borderless/Fullscreen buttons, Alt+F, Esc, rotation reshapes the window. Not yet tested with a real phone — please test, then send FPS/delay numbers.

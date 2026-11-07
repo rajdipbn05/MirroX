@@ -58,6 +58,8 @@ jobs:
         run: node scripts/smoke-test.js --block-default-port dist/win-unpacked/MirroX.exe
       - name: Run app on Windows while a fake DouWan blocks the connection
         run: node scripts/smoke-test.js --fake-conflict dist/win-unpacked/MirroX.exe
+      - name: Mirror window with a pretend phone (video, clicks, keys, window modes)
+        run: node scripts/smoke-test.js --fake-phone dist/win-unpacked/MirroX.exe
       - uses: actions/upload-artifact@v4
         if: always()
         with:

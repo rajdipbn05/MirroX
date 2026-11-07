@@ -153,13 +153,14 @@ window.mirrox.onPhoneState((s) => {
   render();
 });
 
-const RUNNING_NOTE = 'Your phone screen is showing in its own window. Close that window or press Stop to end. Alt+F switches fullscreen on/off.';
+const RUNNING_NOTE = 'Your phone screen is showing in its own window. Close that window or press Stop to end. Alt+F switches between a normal window and fullscreen/borderless.';
 
 function liveNote() {
   const parts = [];
   if (stats.fps != null) parts.push(`${stats.fps} FPS`);
   if (stats.width) parts.push(`picture ${stats.width}×${stats.height}`);
   if (stats.skipped) parts.push(`${stats.skipped} frames dropped by this computer`);
+  if (stats.decodeMs != null) parts.push(`decoding ${stats.decodeMs} ms`);
   return parts.length ? `${RUNNING_NOTE}\nLive: ${parts.join(' · ')}` : RUNNING_NOTE;
 }
 
@@ -179,7 +180,8 @@ window.mirrox.onMirrorState(({ state, message, details }) => {
 });
 
 // ---------- Presets + Advanced settings ----------
-const FIELDS = ['fullscreen', 'borderless', 'alwaysOnTop', 'audio', 'lowLatency', 'screenOff'];
+const FIELDS = ['audio', 'lowLatency', 'screenOff'];
+let windowState = { mode: 'normal', alwaysOnTop: false, monitor: 'primary' };
 
 function effective() {
   const { settings, presets } = cfg;
@@ -205,7 +207,40 @@ function renderSettings() {
   $('fps-val').textContent = `${v.maxFps} FPS`;
   $('orientation').value = v.orientation;
   for (const f of FIELDS) $(f).checked = !!v[f];
+  $('classic').checked = !!settings.classic;
 }
+
+// ---------- Window quick toggles + monitor ----------
+function renderWindow() {
+  $('win-fullscreen').setAttribute('aria-pressed', String(windowState.mode === 'fullscreen'));
+  $('win-borderless').setAttribute('aria-pressed', String(windowState.mode === 'borderless'));
+  $('win-top').setAttribute('aria-pressed', String(!!windowState.alwaysOnTop));
+  if ([...$('monitor').options].some((o) => o.value === windowState.monitor)) $('monitor').value = windowState.monitor;
+}
+
+function renderDisplays(list) {
+  const sel = $('monitor');
+  sel.textContent = '';
+  for (const d of list) sel.add(new Option(d.label, d.id));
+  renderWindow();
+}
+
+async function setWindow(w) {
+  windowState = await window.mirrox.setWindow(w);
+  renderWindow();
+}
+
+// Fullscreen and Borderless are alternatives: clicking the active one returns to a normal window.
+$('win-fullscreen').addEventListener('click', () => setWindow({ mode: windowState.mode === 'fullscreen' ? 'normal' : 'fullscreen' }));
+$('win-borderless').addEventListener('click', () => setWindow({ mode: windowState.mode === 'borderless' ? 'normal' : 'borderless' }));
+$('win-top').addEventListener('click', () => setWindow({ alwaysOnTop: !windowState.alwaysOnTop }));
+$('monitor').addEventListener('change', () => setWindow({ monitor: $('monitor').value }));
+$('classic').addEventListener('change', () => saveSettings({ preset: cfg.settings.preset, classic: $('classic').checked }));
+window.mirrox.onWindowState((w) => {
+  windowState = w;
+  renderWindow();
+});
+window.mirrox.onDisplays(renderDisplays);
 
 async function saveSettings(next) {
   cfg.settings = await window.mirrox.setSettings(next);
@@ -247,6 +282,8 @@ $('restart-btn').addEventListener('click', () => {
 window.mirrox.getState().then((st) => {
   $('version').textContent = `v${st.version}`;
   cfg = { settings: st.settings, presets: st.presets, choices: st.choices };
+  windowState = st.window;
+  renderDisplays(st.displays);
   renderSettings();
   if (st.phone) phone = st.phone;
   render();
