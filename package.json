@@ -1,7 +1,7 @@
 {
   "name": "mirrox",
   "productName": "MirroX",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "Mirror your phone screen on your computer over USB — no phone app needed.",
   "main": "src/main/main.js",
   "license": "MIT",

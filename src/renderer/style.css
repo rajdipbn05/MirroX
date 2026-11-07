@@ -1,15 +1,17 @@
 :root {
   --bg: #0f1115;
-  --card: #1a1d24;
-  --border: #2a2e38;
+  --card: #181b22;
+  --card-2: #1f232c;
+  --border: #2a2f3a;
   --text: #eef0f4;
   --muted: #9aa1ad;
+  --faint: #5b616d;
   --accent: #4f8cff;
   --accent-hover: #6a9dff;
   --green: #34c77b;
   --amber: #f2b33d;
-  --grey: #5b616d;
   --red: #ff6b6b;
+  --tone: var(--faint);
 }
 
 * { box-sizing: border-box; }
@@ -21,83 +23,122 @@ body {
   flex-direction: column;
   background: var(--bg);
   color: var(--text);
-  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  font: 15px/1.45 "Segoe UI", system-ui, -apple-system, sans-serif;
   user-select: none;
 }
 
-header { padding: 32px 32px 8px; }
-h1 { margin: 0; font-size: 28px; letter-spacing: -0.5px; }
-.tagline { margin: 4px 0 0; color: var(--muted); }
+header { padding: 28px 32px 8px; }
+.brand { display: flex; align-items: center; gap: 14px; }
+.logo {
+  width: 44px; height: 44px; border-radius: 12px;
+  display: grid; place-items: center;
+  background: linear-gradient(135deg, #4f8cff, #7a5cff);
+}
+.logo svg { width: 24px; height: 24px; fill: none; stroke: white; stroke-width: 2; stroke-linecap: round; }
+h1 { margin: 0; font-size: 22px; letter-spacing: -0.3px; }
+.tagline { margin: 0; color: var(--muted); font-size: 13px; }
 
-main { flex: 1; padding: 16px 32px; display: flex; flex-direction: column; gap: 16px; }
+main { flex: 1; padding: 16px 32px; display: flex; flex-direction: column; gap: 14px; }
 
 .card {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 20px;
   background: var(--card);
   border: 1px solid var(--border);
-  border-radius: 14px;
+  border-radius: 16px;
 }
 
-.status-dot { width: 14px; height: 14px; border-radius: 50%; background: var(--grey); flex-shrink: 0; }
-.status-dot.ready { background: var(--green); box-shadow: 0 0 10px var(--green); }
-.status-dot.needs-permission, .status-dot.connecting { background: var(--amber); }
+/* Phone card, coloured by status */
+.phone-card { display: flex; align-items: center; gap: 18px; padding: 22px; }
+.phone-card[data-status="ready"], .phone-card[data-status="mirroring"] { --tone: var(--green); }
+.phone-card[data-status="needs-permission"], .phone-card[data-status="connecting"],
+.phone-card[data-status="debugging-off"], .phone-card[data-status="needs-driver"],
+.phone-card[data-status="iphone"] { --tone: var(--amber); }
+.phone-card[data-status="blocked"], .phone-card[data-status="helper-error"] { --tone: var(--red); }
 
-.device-name { font-size: 18px; font-weight: 600; }
-.device-status { color: var(--muted); margin-top: 2px; }
+.phone-icon {
+  width: 56px; height: 56px; border-radius: 14px; flex-shrink: 0;
+  display: grid; place-items: center;
+  background: color-mix(in srgb, var(--tone) 14%, transparent);
+}
+.phone-icon svg { width: 30px; height: 30px; fill: none; stroke: var(--tone); stroke-width: 1.8; stroke-linecap: round; }
+.phone-card[data-status="searching"] .phone-icon { animation: pulse 1.6s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: 0.45; } }
 
-.hint p { margin: 0; }
-.hint {
-  margin: 0;
-  padding: 12px 16px;
-  border-radius: 10px;
-  background: rgba(242, 179, 61, 0.12);
-  color: var(--amber);
-  line-height: 1.45;
+.phone-name { font-size: 19px; font-weight: 600; }
+.pill {
+  display: inline-flex; align-items: center; gap: 7px; margin-top: 6px;
+  padding: 3px 10px; border-radius: 999px;
+  background: color-mix(in srgb, var(--tone) 14%, transparent);
+  color: color-mix(in srgb, var(--tone) 75%, white);
+  font-size: 13px;
+}
+.pill .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--tone); }
+.phone-card[data-status="ready"] .pill .dot { box-shadow: 0 0 8px var(--green); }
+
+/* Help panel */
+.help, .note { padding: 16px 18px; border-radius: 14px; background: var(--card-2); border: 1px solid var(--border); }
+.help p, .note p { margin: 0; }
+.help-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+.help-actions:empty { display: none; }
+button.secondary {
+  padding: 9px 14px; border-radius: 10px; cursor: pointer;
+  background: transparent; color: var(--text); font: inherit; font-size: 14px; font-weight: 600;
+  border: 1px solid var(--accent);
+}
+button.secondary:hover { background: color-mix(in srgb, var(--accent) 15%, transparent); }
+button.secondary:disabled { opacity: 0.5; cursor: default; }
+
+.details-row { display: flex; gap: 16px; margin-top: 10px; }
+button.link {
+  padding: 0; background: none; border: none; color: var(--muted);
+  font: inherit; font-size: 13px; text-decoration: underline; cursor: pointer;
+}
+button.link:hover { color: var(--text); }
+pre.details {
+  margin: 8px 0 0; padding: 10px; max-height: 200px; overflow: auto;
+  background: rgba(0, 0, 0, 0.35); border-radius: 8px; color: var(--text);
+  font: 12px/1.4 Consolas, "Cascadia Mono", monospace;
+  white-space: pre-wrap; word-break: break-all; user-select: text;
 }
 
+.note.error { border-color: color-mix(in srgb, var(--red) 50%, transparent); }
+.note.error p { color: var(--red); }
+
+/* Main button */
 button.primary {
-  padding: 16px;
-  font-size: 17px;
-  font-weight: 600;
-  color: white;
-  background: var(--accent);
-  border: none;
-  border-radius: 12px;
-  cursor: pointer;
+  padding: 16px; font: inherit; font-size: 17px; font-weight: 600;
+  color: white; background: var(--accent); border: none; border-radius: 12px; cursor: pointer;
 }
 button.primary:hover:not(:disabled) { background: var(--accent-hover); }
-button.primary:disabled { opacity: 0.4; cursor: default; }
+button.primary:disabled { opacity: 0.35; cursor: default; }
 button.primary.stop { background: #3a3f4b; }
+button.primary.stop:hover { background: #474d5b; }
 
-.message { margin: 0; line-height: 1.45; color: var(--muted); }
-.message.error { color: var(--red); }
-
-footer { padding: 12px 32px 20px; color: var(--grey); font-size: 12px; }
-
-.details-actions { display: flex; gap: 16px; margin-top: 8px; }
-button.link {
-  padding: 0;
-  background: none;
-  border: none;
-  color: inherit;
-  font: inherit;
-  font-size: 13px;
-  text-decoration: underline;
-  cursor: pointer;
+footer {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 12px 32px 20px; color: var(--faint); font-size: 12px;
 }
-pre.details {
-  margin: 8px 0 0;
-  padding: 10px;
-  max-height: 180px;
-  overflow: auto;
-  background: rgba(0, 0, 0, 0.35);
-  border-radius: 8px;
-  color: var(--text);
-  font: 12px/1.4 Consolas, "Cascadia Mono", monospace;
-  white-space: pre-wrap;
-  word-break: break-all;
-  user-select: text;
+button.link.subtle { font-size: 12px; }
+
+/* Guide */
+.modal-backdrop {
+  position: fixed; inset: 0; background: rgba(0, 0, 0, 0.6);
+  display: grid; place-items: center; padding: 20px;
 }
+.modal-backdrop[hidden] { display: none; }
+.modal {
+  width: 100%; max-width: 520px; max-height: 100%; overflow: auto;
+  padding: 22px 24px; border-radius: 16px; background: var(--card); border: 1px solid var(--border);
+  display: flex; flex-direction: column; gap: 12px;
+}
+.modal-head { display: flex; justify-content: space-between; align-items: center; }
+.modal h2 { margin: 0; font-size: 19px; }
+.icon-btn { background: none; border: none; color: var(--muted); font-size: 16px; cursor: pointer; padding: 4px 8px; }
+.muted { margin: 0; color: var(--muted); font-size: 14px; }
+.select-label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--muted); }
+select {
+  padding: 9px 10px; border-radius: 10px; font: inherit; color: var(--text);
+  background: var(--card-2); border: 1px solid var(--border);
+}
+ol { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 8px; }
+ol li { padding-left: 4px; user-select: text; }
+.tip { margin: 0; padding: 10px 12px; border-radius: 10px; font-size: 14px; color: var(--amber); background: rgba(242, 179, 61, 0.1); }

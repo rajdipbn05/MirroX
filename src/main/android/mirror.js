@@ -14,6 +14,8 @@ function friendlyError(log) {
     return 'The phone was disconnected. Check the cable is plugged in firmly, then try again.';
   if (text.includes('device disconnected') || text.includes('connection reset'))
     return 'The connection to your phone was lost. Check the cable, then try again.';
+  if (text.includes('inject_events') || text.includes('injecting input'))
+    return 'Your phone is blocking control from the laptop. Xiaomi: turn on "USB debugging (Security settings)" in Developer options. OPPO/Realme: turn on "Disable permission monitoring". Then try again.';
   if (text.includes('encoder') || text.includes('mediacodec'))
     return 'Your phone could not start sending its screen. Try again, or restart your phone if it keeps happening.';
   return 'Mirroring stopped unexpectedly. Unplug the phone, plug it back in, and try again.';

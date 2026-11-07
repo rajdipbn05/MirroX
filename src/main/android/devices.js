@@ -2,6 +2,9 @@
 
 const { EventEmitter } = require('events');
 const { adb, friendlyAdbError } = require('./adb');
+const { classify, needsUsbScan, needsProcessScan } = require('./status');
+const platform = require('../platform');
+const engines = require('../engines');
 
 // Turns the text printed by `adb devices -l` into a list of {serial, state, model}.
 function parseDevices(output) {
@@ -21,36 +24,27 @@ function parseDevices(output) {
   return devices;
 }
 
-// What each ADB state means for the user.
-const STATUS = {
-  device: { status: 'ready', label: 'Connected' },
-  unauthorized: {
-    status: 'needs-permission',
-    label: 'Waiting for permission on phone',
-    hint: 'Look at your phone: tap "Allow" on the "Allow USB debugging?" message. Tick "Always allow from this computer" so it won\'t ask again.',
-  },
-  offline: {
-    status: 'connecting',
-    label: 'Connecting…',
-    hint: 'Hold on a moment. If this stays for long, unplug the cable and plug it back in.',
-  },
-  authorizing: { status: 'connecting', label: 'Connecting…' },
-};
-
 class DeviceWatcher extends EventEmitter {
   constructor(intervalMs = 1500) {
     super();
     this.intervalMs = intervalMs;
-    this.details = new Map(); // serial -> {name, androidVersion}
-    this.lastJson = '';
-    this.adbError = null;
-    this.adbErrorDetails = null;
+    this.details = new Map(); // serial -> {name, brand, androidVersion}
     this.serverStarted = false;
+    this.usb = null;
+    this.procs = null;
+    this.lastUsbScan = 0;
+    this.lastProcScan = 0;
+    this.lastJson = '';
+    this.current = null;
   }
 
   start() {
     const tick = async () => {
-      await this.poll();
+      try {
+        await this.poll();
+      } catch (err) {
+        console.error('[watcher]', err);
+      }
       this.timer = setTimeout(tick, this.intervalMs);
     };
     tick();
@@ -60,8 +54,16 @@ class DeviceWatcher extends EventEmitter {
     clearTimeout(this.timer);
   }
 
+  // Ask for a fresh look right away (e.g. after closing a conflicting app).
+  refreshSoon() {
+    this.lastUsbScan = 0;
+    this.lastProcScan = 0;
+  }
+
   async poll() {
-    let devices;
+    let devices = [];
+    let adbError = null;
+    let adbErrorDetails = null;
     try {
       // Starting the helper the first time can be slow (antivirus scans), so allow it more time.
       if (!this.serverStarted) {
@@ -69,29 +71,50 @@ class DeviceWatcher extends EventEmitter {
         this.serverStarted = true;
       }
       devices = parseDevices(await adb(['devices', '-l']));
-      this.adbError = null;
-      this.adbErrorDetails = null;
     } catch (err) {
       this.serverStarted = false;
-      this.adbError = friendlyAdbError(err);
-      this.adbErrorDetails = err.details || String(err && err.stack ? err.stack : err);
-      console.error('[adb]', this.adbErrorDetails);
-      devices = [];
+      adbError = friendlyAdbError(err);
+      adbErrorDetails = err.details || String((err && err.stack) || err);
+      console.error('[adb]', adbErrorDetails);
     }
 
-    const result = [];
     for (const d of devices) {
-      const meta = STATUS[d.state] || { status: 'connecting', label: 'Connecting…' };
-      const entry = { serial: d.serial, ...meta, name: d.model || 'Android phone' };
-      if (d.state === 'device') Object.assign(entry, await this.getDetails(d.serial, d.model));
-      result.push(entry);
+      d.name = d.model || '';
+      if (d.state === 'device') Object.assign(d, await this.getDetails(d.serial, d.model));
     }
 
-    const payload = { devices: result, error: this.adbError, errorDetails: this.adbErrorDetails };
-    const json = JSON.stringify(payload);
+    // Look at USB and running programs only when ADB alone can't explain things.
+    const now = Date.now();
+    const scanUsb = needsUsbScan({ devices });
+    if (!scanUsb) {
+      this.usb = null;
+      this.procs = null;
+    } else if (now - this.lastUsbScan > 3000) {
+      this.lastUsbScan = now;
+      this.usb = await platform.scanUsb().catch((e) => (console.error('[usb]', e.message), null));
+    }
+    if (needsProcessScan({ devices, adbError, usb: this.usb })) {
+      if (now - this.lastProcScan > 5000) {
+        this.lastProcScan = now;
+        this.procs = await platform.listProcesses().catch((e) => (console.error('[procs]', e.message), null));
+      }
+    } else {
+      this.procs = null;
+    }
+
+    const state = classify({
+      devices,
+      adbError,
+      adbErrorDetails,
+      usb: this.usb,
+      procs: this.procs,
+      engineDir: engines.scrcpyDir(),
+    });
+    const json = JSON.stringify(state);
     if (json !== this.lastJson) {
       this.lastJson = json;
-      this.emit('change', payload);
+      this.current = state;
+      this.emit('change', state);
     }
   }
 

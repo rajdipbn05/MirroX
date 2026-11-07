@@ -23,19 +23,23 @@ This page shows what is done and what comes next. It is updated after every stag
 | # | Stage | What you'll be able to do | Status |
 |---|-------|---------------------------|--------|
 | 0 | Confirm your setup | Windows 11 24H2 · Samsung Galaxy S23 (Android 14) · Motorola g57 power (Android 17) · iPhones for Phase 2 | ✅ |
-| 1 | Basic mirror | Plug in phone → app shows its name → click a button → phone screen appears in a window | 🧪 |
-| 2 | Proper interface | Clean main window: phone name, status (connected / USB Debugging off / waiting for permission on phone), big "Start Mirroring" button | ⏳ |
-| 3 | First-time setup guide | Step-by-step guide in the app for turning on USB Debugging, with tips for Samsung, Xiaomi, OnePlus, Pixel, Oppo, Vivo, Realme, Motorola, Huawei | ⏳ |
-| 4 | Plain-language errors | Friendly messages with "show me how" links instead of technical errors | ⏳ |
-| 5 | Presets | "Gaming" (max FPS, high quality, lowest delay, landscape, screen stays awake) and "Normal" (balanced) | ⏳ |
-| 6 | Advanced panel | Sliders for resolution, quality (bitrate), and max FPS | ⏳ |
-| 7 | Window controls | Fullscreen, borderless, always-on-top, portrait/landscape rotation | ⏳ |
-| 8 | Phone audio | Hear the phone through the laptop (Android 11 and newer), on/off switch | ⏳ |
-| 9 | Keyboard & mouse control | Control the phone from the laptop, on/off switch | ⏳ |
-| 10 | Game key mapping | Place keys (W, A, S, D, Space…) on spots of the phone screen to play games with the keyboard; save layouts per game | ⏳ |
-| 11 | Record & screenshot | Record the mirror with sound to an MP4 video; one-click screenshot | ⏳ |
-| 12 | Remember settings | The app remembers your choices next time you open it | ⏳ |
-| 13 | Package as one file | Single portable `.exe` + installer with everything bundled; tested on a clean PC | ⏳ |
+| 1 | Basic mirror | Plug in phone → app shows its name → click a button → phone screen appears in a window | ✅ Tested on Motorola g57 power: all 7 steps worked, sound works |
+| 2 | Proper interface + clear statuses | New main screen. Statuses: Connected / USB Debugging off / Waiting for permission on phone / Driver missing / Another app is blocking. Names the blocking app (DouWan, ApowerMirror, Vysor, BlueStacks…) with a "Close it for me" button. "Show details" on every problem. Brand-specific "How to turn on USB Debugging" guide | 🧪 |
+| 3 | Presets — smoothness first | "Gaming" (max FPS, high quality, lowest delay, landscape, screen stays awake) and "Normal" (balanced). *Moved up because smoothness was only "OK" on the Motorola.* | ⏳ |
+| 4 | Advanced panel | Sliders for resolution, quality (bitrate), and max FPS | ⏳ |
+| 5 | First-time setup walk-through | Opens on first launch; guides step by step through USB Debugging with progress, building on the Stage 2 guide | ⏳ |
+| 6 | Window controls | Fullscreen, borderless, always-on-top, portrait/landscape rotation | ⏳ |
+| 7 | Phone audio switch | Sound already works; add an on/off switch | ⏳ |
+| 8 | Keyboard & mouse control switch | Control already works; add an on/off switch | ⏳ |
+| 9 | Game key mapping | Place keys (W, A, S, D, Space…) on spots of the phone screen to play games with the keyboard; save layouts per game | ⏳ |
+| 10 | Record & screenshot | Record the mirror with sound to an MP4 video; one-click screenshot | ⏳ |
+| 11 | Remember settings | The app remembers your choices next time you open it | ⏳ |
+| 12 | Package as one file | Signed portable `.exe` + installer; tested on a clean PC | ⏳ |
+
+**Always-on rules (every stage):**
+- Every problem message has **Show details** / **Copy details** with the real technical error.
+- If the phone connection is blocked, MirroX names the other app holding it instead of just timing out.
+- Every build is tested automatically on a real Windows machine before it's published (no phone; blocked port 5037; fake DouWan running).
 
 ## Phase 2 — iPhone over USB (later)
 
@@ -70,3 +74,5 @@ Phone audio needs Android 11+, so every target phone supports it.
 - **2026-11-07** — v0.1.0 on your laptop: "phone connection helper could not start". The same app worked on GitHub's clean Windows test machine, so the cause is something on your laptop (most likely antivirus, or another program using the phone connection).
 - **2026-11-07** — v0.1.1: "Show details" / "Copy details" on errors, clearer messages for each likely cause, more time for the helper to start. Every build is now tested on a real Windows machine before it's published.
 - **2026-11-07** — v0.1.1 details showed the helper started but never answered. Cause: another program on the laptop is holding ADB's standard channel (port 5037). v0.1.2: MirroX now uses its own private channel (port 15037), so other phone/emulator tools can't interfere. The details box now also lists which programs hold those ports. GitHub's Windows test now simulates a blocked port 5037.
+- **2026-11-07** — Stage 1 confirmed working on Motorola g57 power. Cause of the earlier error: DouWan running in the background, holding the phone.
+- **2026-11-07** — Stage 2 built (v0.2.0): new main screen, detection of "USB Debugging off" / missing driver / blocking apps (with "Close it for me"), brand-specific USB Debugging guide. Phone Link is deliberately *not* flagged: it connects over Wi-Fi and can't hold the cable connection.

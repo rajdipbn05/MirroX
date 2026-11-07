@@ -56,11 +56,13 @@ jobs:
         run: node scripts/smoke-test.js dist/win-unpacked/MirroX.exe
       - name: Run app on Windows while another program blocks port 5037
         run: node scripts/smoke-test.js --block-default-port dist/win-unpacked/MirroX.exe
+      - name: Run app on Windows while a fake DouWan blocks the connection
+        run: node scripts/smoke-test.js --fake-conflict dist/win-unpacked/MirroX.exe
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: smoke-screenshot
-          path: smoke-screenshot.png
+          name: smoke-screenshots
+          path: smoke-*.png
 
   release:
     needs: [build, smoke-test-windows]

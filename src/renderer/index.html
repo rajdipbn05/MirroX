@@ -2,47 +2,78 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; script-src 'self'" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' data:" />
     <title>MirroX</title>
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
     <header>
-      <h1>MirroX</h1>
-      <p class="tagline">Your phone screen, on your computer.</p>
+      <div class="brand">
+        <div class="logo" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2" /><path d="M8 20h8M12 16v4" /></svg>
+        </div>
+        <div>
+          <h1>MirroX</h1>
+          <p class="tagline">Your phone screen, on your computer</p>
+        </div>
+      </div>
     </header>
 
     <main>
-      <section class="card" id="device-card">
-        <div class="status-dot" id="status-dot"></div>
-        <div class="device-text">
-          <div class="device-name" id="device-name">Looking for your phone…</div>
-          <div class="device-status" id="device-status">Plug your phone into this computer with a USB cable.</div>
+      <section class="card phone-card" id="phone-card" data-status="searching">
+        <div class="phone-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><rect x="6" y="2" width="12" height="20" rx="2.5" /><path d="M10.5 18.5h3" /></svg>
+        </div>
+        <div class="phone-text">
+          <div class="phone-name" id="phone-name">Looking for your phone…</div>
+          <div class="pill" id="phone-pill"><span class="dot"></span><span id="phone-subtitle">Starting up</span></div>
         </div>
       </section>
 
-      <div class="hint" id="hint-box" hidden>
-        <p id="hint"></p>
-        <div class="details-actions" id="details-actions" hidden>
+      <section class="help" id="help" hidden>
+        <p id="help-message"></p>
+        <div class="help-actions" id="help-actions"></div>
+        <div class="details-row" id="details-row" hidden>
           <button class="link" id="details-toggle">Show details</button>
           <button class="link" id="details-copy" hidden>Copy details</button>
         </div>
         <pre class="details" id="details" hidden></pre>
-      </div>
+      </section>
 
       <button id="mirror-btn" class="primary" disabled>Start Mirroring</button>
 
-      <div id="message-box" hidden>
-        <p class="message" id="message"></p>
-        <div class="details-actions" id="mdetails-actions" hidden>
+      <section class="note" id="note" hidden>
+        <p id="note-message"></p>
+        <div class="details-row" id="mdetails-row" hidden>
           <button class="link" id="mdetails-toggle">Show details</button>
           <button class="link" id="mdetails-copy" hidden>Copy details</button>
         </div>
         <pre class="details" id="mdetails" hidden></pre>
-      </div>
+      </section>
     </main>
 
-    <footer>Stage 1 preview · v0.1.2</footer>
+    <footer>
+      <button class="link subtle" id="open-guide">How to turn on USB Debugging</button>
+      <span id="version"></span>
+    </footer>
+
+    <div class="modal-backdrop" id="guide" hidden>
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="guide-title">
+        <div class="modal-head">
+          <h2 id="guide-title">Turn on USB Debugging</h2>
+          <button class="icon-btn" id="guide-close" aria-label="Close">✕</button>
+        </div>
+        <p class="muted">This is a one-time setting on your phone. It lets MirroX show your screen over the cable — nothing is installed on the phone.</p>
+        <label class="select-label">Your phone
+          <select id="guide-brand"></select>
+        </label>
+        <ol id="guide-steps"></ol>
+        <p class="tip" id="guide-tip" hidden></p>
+        <button class="primary" id="guide-done">Done</button>
+      </div>
+    </div>
+
+    <script src="guide.js"></script>
     <script src="renderer.js"></script>
   </body>
 </html>
