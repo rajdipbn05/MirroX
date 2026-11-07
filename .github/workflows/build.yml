@@ -54,6 +54,8 @@ jobs:
         run: Get-ChildItem dist/win-unpacked/resources/engines/scrcpy | Format-Table Name, Length
       - name: Run app on Windows (no phone attached)
         run: node scripts/smoke-test.js dist/win-unpacked/MirroX.exe
+      - name: Run app on Windows while another program blocks port 5037
+        run: node scripts/smoke-test.js --block-default-port dist/win-unpacked/MirroX.exe
       - uses: actions/upload-artifact@v4
         if: always()
         with:

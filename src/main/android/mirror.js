@@ -3,6 +3,7 @@
 const { spawn } = require('child_process');
 const { EventEmitter } = require('events');
 const engines = require('../engines');
+const { adbEnv } = require('./adb');
 
 // Turns scrcpy's technical messages into plain language.
 function friendlyError(log) {
@@ -42,7 +43,7 @@ class Mirror extends EventEmitter {
     const proc = spawn(engines.scrcpyPath(), args, {
       cwd: engines.scrcpyDir(),
       windowsHide: true,
-      env: { ...process.env, ADB: engines.adbPath(), ADB_MDNS: '0' },
+      env: { ...adbEnv(), ADB: engines.adbPath() },
     });
     this.proc = proc;
     this.emit('state', { state: 'starting' });
