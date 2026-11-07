@@ -1,14 +1,14 @@
 // MirroX main process: owns the windows, watches for phones, and runs mirroring.
 
 const path = require('path');
-const { app, BrowserWindow, ipcMain, clipboard, shell, screen } = require('electron');
+const { app, BrowserWindow, ipcMain, clipboard, shell } = require('electron');
 const { DeviceWatcher } = require('./android/devices');
 const { Mirror } = require('./android/mirror'); // classic engine (scrcpy's own window), kept as a fallback
 const { adb } = require('./android/adb');
 const platform = require('./platform');
 const settingsStore = require('./settings');
 const presets = require('./android/presets');
-const { MirrorController, listDisplays } = require('./mirror-window');
+const { MirrorController } = require('./mirror-window');
 
 let win;
 let settings; // loaded once the app is ready
@@ -25,7 +25,7 @@ function saveSettings() {
   settingsStore.save(settings);
 }
 
-// Settings store for the mirror window (monitor, always-on-top, bounds/mode per monitor, hints).
+// Settings store for the mirror window (position/size, mode, always-on-top, hints).
 const windowStore = {
   get: () => settings.window,
   set: (partial) => {
@@ -66,7 +66,7 @@ function startMirror() {
   const perf = presets.effectiveSettings(settings);
   active = testPort ? controller : engineFor();
   if (active === classic) {
-    const w = controller.windowInfo();
+    const w = controller.modeInfo();
     classic.start({ serial: s.serial, name: s.name }, { ...perf, fullscreen: w.mode === 'fullscreen', borderless: w.mode === 'borderless', alwaysOnTop: w.alwaysOnTop });
   } else {
     controller.start(testPort ? { testPort, name: 'Test phone' } : { serial: s.serial, name: s.name }, perf);
@@ -80,7 +80,7 @@ function stopMirror() {
 
 app.whenReady().then(() => {
   settings = settingsStore.load();
-  controller = new MirrorController(windowStore);
+  controller = new MirrorController(windowStore, () => (win && !win.isDestroyed() ? win.getBounds() : null));
   createWindow();
 
   watcher.on('change', (state) => send('phone-state', state));
@@ -89,16 +89,13 @@ app.whenReady().then(() => {
     engine.on('stats', (s) => send('mirror-stats', s));
   }
   controller.on('window', (w) => send('window-state', w));
-  screen.on('display-added', () => send('displays', listDisplays()));
-  screen.on('display-removed', () => send('displays', listDisplays()));
   watcher.start();
 
   ipcMain.handle('get-state', () => ({
     phone: watcher.current,
     version: app.getVersion(),
     settings: { preset: settings.preset, custom: settings.custom, classic: settings.classic },
-    window: controller.windowInfo(),
-    displays: listDisplays(),
+    window: controller.modeInfo(),
     presets: presets.PRESETS,
     choices: {
       resolutions: presets.RESOLUTIONS,
@@ -120,10 +117,9 @@ app.whenReady().then(() => {
 
   // Window options: applied right away to an open mirror window, otherwise remembered for next time.
   ipcMain.handle('set-window', (_e, w) => {
-    if (typeof w.monitor === 'string') windowStore.set({ monitor: w.monitor });
     if (typeof w.alwaysOnTop === 'boolean') controller.setAlwaysOnTop(w.alwaysOnTop);
     if (typeof w.mode === 'string') controller.setMode(w.mode);
-    return controller.windowInfo(controller.win ? controller.mode : undefined);
+    return controller.modeInfo();
   });
 
   ipcMain.handle('start-mirror', startMirror);

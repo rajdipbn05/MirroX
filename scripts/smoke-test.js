@@ -92,69 +92,95 @@ async function fakePhoneTest() {
   }
   check('video frames shown', /Live: [1-9]\d* FPS/.test(note), note);
 
-  const mirror = app.windows().find((w) => w !== main) || (await app.waitForEvent('window', { timeout: 10000 }));
-  await mirror.waitForTimeout(500);
-  await mirror.screenshot({ path: 'smoke-mirror-normal.png' });
+  // The mirror window is replaced when switching normal <-> borderless: always use the newest one.
+  const M = () => app.windows().filter((w) => !w.isClosed() && w.url().includes('mirror.html')).pop();
+  const framesIn = async (page) => page.evaluate(() => window.__frames || 0).catch(() => 0);
+  const pictureFlows = async () => {
+    // Wait for a (new) window, then check that frames keep arriving in it.
+    for (let i = 0; i < 40; i++) {
+      const page = M();
+      if (page) {
+        const a = await framesIn(page);
+        await page.waitForTimeout(700).catch(() => {});
+        if ((await framesIn(page)) > a && a >= 0 && page === M()) return true;
+      } else await main.waitForTimeout(250);
+    }
+    return false;
+  };
+  const mode = async () => ((await M().getAttribute('body', 'class')) || '').replace(/ .*/, '');
+  const frameKind = () => app.evaluate(({ BrowserWindow }) => {
+    const w = BrowserWindow.getAllWindows().filter((x) => x.webContents.getURL().includes('mirror.html')).pop();
+    return w ? { fullscreen: w.isFullScreen(), title: w.getTitle() } : null;
+  });
 
-  // 2. Window starts normal, with a title bar and its buttons.
-  check('starts as a normal window', (await mirror.getAttribute('body', 'class')) === 'mode-normal');
-  check('title bar visible', await mirror.isVisible('#titlebar'));
+  check('picture shows in the mirror window', await pictureFlows());
+  await M().screenshot({ path: 'smoke-mirror-normal.png' });
+
+  // 2. Window starts normal, with the toolbar and its buttons.
+  check('starts as a normal window', (await mode()) === 'mode-normal');
+  check('toolbar visible', await M().isVisible('#toolbar'));
+  check('window title kept', /MirroX — Test phone/.test(((await frameKind()) || {}).title || ''));
 
   // 3. Click + key reach the phone.
-  const box = await mirror.locator('#screen').boundingBox();
-  await mirror.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
-  await mirror.keyboard.press('a');
-  await mirror.waitForTimeout(800);
+  const box = await M().locator('#screen').boundingBox();
+  await M().mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  await M().keyboard.press('a');
+  await M().waitForTimeout(800);
   const touches = messages.filter((m) => m.msg === 'touch');
   check('click sent as touch down+up', touches.some((m) => m.action === 0) && touches.some((m) => m.action === 1), JSON.stringify(touches.slice(0, 2)));
   check('key sent', messages.some((m) => m.msg === 'key' && m.keycode === 29 && m.action === 0));
   const t = touches[0] || {};
   check('touch inside the phone screen', t.x > 0 && t.y > 0 && t.x < t.w && t.y < t.h, JSON.stringify(t));
 
-  // 4. Window modes: Borderless button, Alt+F back to normal, Alt+F again to borderless.
-  const mode = async () => (await mirror.getAttribute('body', 'class')).replace(/ .*/, '');
-  await mirror.click('#titlebar [data-action="borderless"]');
-  await mirror.waitForTimeout(600);
+  // 4. Window modes. Borderless swaps the window: the picture must continue.
+  await M().click('#toolbar [data-action="borderless"]');
+  await main.waitForTimeout(1500);
   check('Borderless button', (await mode()) === 'mode-borderless');
-  await mirror.screenshot({ path: 'smoke-mirror-borderless.png' });
-  await mirror.keyboard.press('Alt+f');
-  await mirror.waitForTimeout(600);
+  check('picture continues in borderless', await pictureFlows());
+  await M().screenshot({ path: 'smoke-mirror-borderless.png' });
+  await M().keyboard.press('Alt+f');
+  await main.waitForTimeout(1500);
   check('Alt+F returns to normal', (await mode()) === 'mode-normal');
-  await mirror.keyboard.press('Alt+f');
-  await mirror.waitForTimeout(600);
+  check('picture continues back in normal', await pictureFlows());
+  await M().keyboard.press('Alt+f');
+  await main.waitForTimeout(1500);
   check('Alt+F goes back to borderless', (await mode()) === 'mode-borderless');
-  await mirror.keyboard.press('Alt+f');
-  await mirror.waitForTimeout(600);
-  await mirror.click('#titlebar [data-action="fullscreen"]');
-  await mirror.waitForTimeout(1200);
+  await M().keyboard.press('Alt+f');
+  await main.waitForTimeout(1500);
+  await M().click('#toolbar [data-action="fullscreen"]');
+  await main.waitForTimeout(1500);
   check('Fullscreen button', (await mode()) === 'mode-fullscreen');
-  await mirror.screenshot({ path: 'smoke-mirror-fullscreen.png' });
-  await mirror.keyboard.press('Escape');
-  await mirror.waitForTimeout(1200);
-  check('Esc leaves fullscreen', (await mode()) === 'mode-normal');
+  await M().screenshot({ path: 'smoke-mirror-fullscreen.png' });
+  await M().keyboard.press('Escape');
+  await main.waitForTimeout(1500);
+  check('Esc leaves fullscreen', (await mode()) === 'mode-normal' && !((await frameKind()) || {}).fullscreen);
+  check('picture continues after fullscreen', await pictureFlows());
+  check('only one mirror window open', app.windows().filter((w) => !w.isClosed() && w.url().includes('mirror.html')).length === 1);
 
   // 5. The window reshapes when the "phone" rotates (the clip switches every 2 s).
   const shape = async () => {
-    const c = await mirror.evaluate(() => ({ w: document.getElementById('screen').width, h: document.getElementById('screen').height, decoderErrors: window.__decoderErrors }));
-    const b = await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find((w) => w.webContents.getURL().includes('mirror.html')).getBounds());
+    const c = await M().evaluate(() => ({ w: document.getElementById('screen').width, h: document.getElementById('screen').height, decoderErrors: window.__decoderErrors }));
+    const b = await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().filter((w) => w.webContents.getURL().includes('mirror.html')).pop().getContentBounds());
     return { c, b };
   };
+  // Sample for ~7 s (the fake phone rotates every 2 s): picture AND window must be seen landscape
+  // together, and portrait together.
+  const seen = { landscape: false, portrait: false };
   let sh;
-  for (let i = 0; i < 30; i++) {
+  for (let i = 0; i < 28 && !(seen.landscape && seen.portrait); i++) {
     sh = await shape();
-    if (sh.c.w > sh.c.h) break;
-    await mirror.waitForTimeout(200);
+    if (sh.c.w > sh.c.h && sh.b.width > sh.b.height) seen.landscape = true;
+    if (sh.c.w < sh.c.h && sh.b.width < sh.b.height) seen.portrait = true;
+    if (seen.landscape && !seen.portrait) await M().screenshot({ path: 'smoke-mirror-landscape.png' }).catch(() => {});
+    await main.waitForTimeout(250);
   }
-  await mirror.waitForTimeout(700);
-  sh = await shape();
-  check('window turns landscape with the phone', sh.c.w > sh.c.h && sh.b.width > sh.b.height, JSON.stringify(sh));
-  await mirror.screenshot({ path: 'smoke-mirror-landscape.png' }).catch(() => {});
+  check('window turns landscape and back with the phone', seen.landscape && seen.portrait, JSON.stringify({ seen, last: sh }));
 
   // 6. Picture keeps coming after the "phone" rotates.
   await main.waitForTimeout(4500);
   note = (await main.textContent('#note-message').catch(() => '')) || '';
   check('still streaming after rotation', /Live: [1-9]\d* FPS/.test(note), note);
-  await mirror.screenshot({ path: 'smoke-mirror-rotated.png' }).catch(() => {});
+  await M().screenshot({ path: 'smoke-mirror-rotated.png' }).catch(() => {});
 
   const report = `scenario: --fake-phone\nlast status: ${note.replace(/\n/g, ' | ')}\n` + Object.entries(results).map(([k, v]) => `${k}: ${v}`).join('\n');
   out(report);

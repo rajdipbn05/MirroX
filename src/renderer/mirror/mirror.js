@@ -1,11 +1,7 @@
-// The mirror window: connects to scrcpy-server on the phone, shows the video, plays the sound,
-// and sends mouse/keyboard input to the phone.
-//
-// This window runs with Node access (it only ever loads this local file) so it can read the
-// video socket directly, which avoids an extra copy and keeps delay as low as possible.
+// The mirror window: shows the phone's picture, plays its sound, and sends mouse/keyboard input.
+// The connection to the phone lives in MirroX's main process (so this window can be swapped
+// between normal and borderless without dropping it); packets arrive here over IPC.
 
-const net = require('net');
-const path = require('path');
 const { ipcRenderer } = require('electron');
 const P = require('../../shared/scrcpy-protocol');
 const { KEYCODES, ANDROID_HOME, metaState } = require('../../shared/keycodes');
@@ -14,94 +10,20 @@ const $ = (id) => document.getElementById(id);
 const canvas = $('screen');
 const ctx = canvas.getContext('2d', { alpha: false, desynchronized: true });
 
-let opts = null; // from main: { port, audio, screenOff, mode, alwaysOnTop, title }
 let mode = 'normal';
-let control = null; // control socket
 let videoSize = { width: 0, height: 0 }; // current video size, as the phone sees it
-let closing = false;
 
-// ---------- Socket reading ----------
-
-class Reader {
-  constructor(socket) {
-    this.socket = socket;
-    this.chunks = [];
-    this.length = 0;
-    this.waiter = null;
-    this.ended = false;
-    socket.on('data', (d) => {
-      this.chunks.push(d);
-      this.length += d.length;
-      this.wake();
-    });
-    const end = () => {
-      this.ended = true;
-      this.wake();
-    };
-    socket.on('close', end);
-    socket.on('error', end);
-  }
-  wake() {
-    if (this.waiter && (this.length >= this.waiter.n || this.ended)) {
-      const w = this.waiter;
-      this.waiter = null;
-      w.resolve();
-    }
-  }
-  async read(n) {
-    if (this.length < n) {
-      if (this.ended) throw new Error('connection closed');
-      await new Promise((resolve) => {
-        this.waiter = { n, resolve };
-      });
-      if (this.length < n) throw new Error('connection closed');
-    }
-    const all = this.chunks.length === 1 ? this.chunks[0] : Buffer.concat(this.chunks);
-    const out = all.subarray(0, n);
-    const rest = all.subarray(n);
-    this.chunks = rest.length ? [rest] : [];
-    this.length = rest.length;
-    return out;
-  }
-}
-
-function connect(port) {
-  return new Promise((resolve, reject) => {
-    const s = net.connect({ host: '127.0.0.1', port }, () => resolve(s));
-    s.once('error', reject);
-  });
-}
-
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-
-// The first socket must receive one "dummy" byte: until the server is listening on the phone,
-// adb accepts the connection and immediately closes it, so retry (like scrcpy: 100 × 100 ms).
-async function connectFirst(port) {
-  let lastErr;
-  for (let i = 0; i < 100 && !closing; i++) {
-    try {
-      const s = await connect(port);
-      s.setNoDelay(true);
-      const r = new Reader(s);
-      await r.read(1);
-      return { socket: s, reader: r };
-    } catch (err) {
-      lastErr = err;
-      await sleep(100);
-    }
-  }
-  throw lastErr || new Error('cancelled');
-}
+const sendControl = (buf) => ipcRenderer.send('mirror:control', buf);
 
 // ---------- Video ----------
 
 let decoder = null;
 let decoderCodec = null;
 let decoderConfig = null; // the SPS/PPS the decoder was set up with
-let decoderErrors = 0;
 let pendingConfig = null;
 let waitingKeyFrame = true;
-const recvTimes = new Map(); // timestamp -> time received (for the delay statistic)
+let decoderErrors = 0;
+const recvTimes = new Map(); // timestamp -> time received (for the "decoding … ms" number)
 let framesThisSecond = 0;
 let decodeMsSum = 0;
 let decodeMsCount = 0;
@@ -118,7 +40,7 @@ function makeDecoder(codec, config) {
       decoderErrors++;
       window.__decoderErrors = decoderErrors; // read by automated tests
       waitingKeyFrame = true;
-      decoderCodec = null; // re-create on next config
+      decoderConfig = null; // re-create on the next config
       sendControl(P.simple(P.MSG.RESET_VIDEO)); // ask the phone for a fresh key frame
     },
   });
@@ -135,7 +57,6 @@ function onFrame(frame) {
   if (canvas.width !== w || canvas.height !== h) {
     canvas.width = w;
     canvas.height = h;
-    ipcRenderer.send('mirror:size', { width: w, height: h });
   }
   ctx.drawImage(frame, 0, 0, w, h);
   const t = recvTimes.get(frame.timestamp);
@@ -146,14 +67,17 @@ function onFrame(frame) {
   }
   frame.close();
   framesThisSecond++;
+  window.__frames = (window.__frames || 0) + 1; // read by automated tests
   if (firstFrame) {
     firstFrame = false;
     $('status').hidden = true;
+    ipcRenderer.send('mirror:first-frame');
   }
 }
 
-function onVideoPacket(h, data) {
-  if (h.config) {
+ipcRenderer.on('video', (_e, p) => {
+  const data = Buffer.from(p.data.buffer, p.data.byteOffset, p.data.byteLength);
+  if (p.config) {
     pendingConfig = Buffer.from(data);
     return;
   }
@@ -167,55 +91,42 @@ function onVideoPacket(h, data) {
     }
     payload = Buffer.concat([pendingConfig, data]);
     pendingConfig = null;
+  } else if (decoderConfig && waitingKeyFrame && p.key) {
+    payload = Buffer.concat([decoderConfig, data]); // key frame without new config: repeat SPS/PPS
   }
   if (!decoder || decoder.state !== 'configured') return;
-  if (waitingKeyFrame && !h.keyFrame) return;
+  if (waitingKeyFrame && !p.key) return;
   waitingKeyFrame = false;
-  recvTimes.set(h.pts, performance.now());
+  recvTimes.set(p.pts, performance.now());
   if (recvTimes.size > 240) recvTimes.delete(recvTimes.keys().next().value);
-  decoder.decode(new EncodedVideoChunk({ type: h.keyFrame ? 'key' : 'delta', timestamp: h.pts, data: payload }));
-}
+  decoder.decode(new EncodedVideoChunk({ type: p.key ? 'key' : 'delta', timestamp: p.pts, data: payload }));
+});
 
-async function readVideo(reader) {
-  const codec = (await reader.read(4)).readUInt32BE(0);
-  if (codec === P.CODEC.ERROR) throw userError('Your phone could not start sending its screen at these settings. Try a lower resolution or quality in Advanced settings.');
-  if (codec !== P.CODEC.H264) throw userError(`Unexpected video format from the phone (${codec.toString(16)}).`);
-  for (;;) {
-    const h = P.parseHeader(await reader.read(P.HEADER_SIZE));
-    if (h.session) {
-      videoSize = { width: h.width, height: h.height };
-      continue;
-    }
-    onVideoPacket(h, await reader.read(h.size));
-  }
-}
+ipcRenderer.on('session', (_e, s) => {
+  videoSize = { width: s.width, height: s.height };
+});
 
 // ---------- Audio ----------
 
-async function readAudio(reader) {
-  const codec = (await reader.read(4)).readUInt32BE(0);
-  if (codec !== P.CODEC.RAW) return; // disabled by the phone (Android < 11) or error: video only
-  const ac = new AudioContext({ sampleRate: 48000, latencyHint: 'interactive' });
-  await ac.audioWorklet.addModule('pcm-worklet.js');
-  const node = new AudioWorkletNode(ac, 'pcm-player', { outputChannelCount: [2] });
-  node.connect(ac.destination);
-  for (;;) {
-    const h = P.parseHeader(await reader.read(P.HEADER_SIZE));
-    const data = await reader.read(h.size);
-    if (h.config) continue;
-    // Copy into an aligned buffer (Int16Array needs an even byte offset).
-    const pcm = new Int16Array(data.length >> 1);
-    Buffer.from(pcm.buffer).set(data.subarray(0, pcm.length * 2));
-    node.port.postMessage(pcm, [pcm.buffer]);
-    if (ac.state === 'suspended') ac.resume();
-  }
-}
+let audioNode = null;
+let audioCtx = null;
+ipcRenderer.on('audio-start', async () => {
+  if (audioCtx) return;
+  audioCtx = new AudioContext({ sampleRate: 48000, latencyHint: 'interactive' });
+  await audioCtx.audioWorklet.addModule('pcm-worklet.js');
+  audioNode = new AudioWorkletNode(audioCtx, 'pcm-player', { outputChannelCount: [2] });
+  audioNode.connect(audioCtx.destination);
+});
+ipcRenderer.on('audio', (_e, data) => {
+  if (!audioNode) return;
+  // Copy into an aligned buffer (Int16Array needs an even byte offset).
+  const pcm = new Int16Array(data.byteLength >> 1);
+  new Uint8Array(pcm.buffer).set(data.subarray(0, pcm.length * 2));
+  audioNode.port.postMessage(pcm, [pcm.buffer]);
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+});
 
 // ---------- Control: mouse + keyboard -> phone ----------
-
-function sendControl(buf) {
-  if (control && !control.destroyed) control.write(buf);
-}
 
 // Window coordinates -> phone video coordinates (the picture is letterboxed inside the canvas).
 function toPhone(e, clamp) {
@@ -314,19 +225,19 @@ window.addEventListener('keyup', (e) => {
 window.addEventListener('blur', () => {
   for (const c of keysDown) sendControl(P.injectKeycode(P.ACTION.UP, KEYCODES[c]));
   keysDown.clear();
-  if (touching) touching = false;
+  touching = false;
 });
 
 // ---------- Window modes, toolbar, overlay ----------
 
-function applyMode(m, { alwaysOnTop, hint }) {
-  mode = m;
-  document.body.className = `mode-${m}`;
-  for (const el of document.querySelectorAll('.pin')) el.classList.toggle('on', !!alwaysOnTop);
-  $('ov-exit-label').textContent = m === 'fullscreen' ? 'Exit fullscreen' : 'Normal window';
-  $('ov-swap-label').textContent = m === 'fullscreen' ? 'Borderless' : 'Fullscreen';
-  $('ov-swap').dataset.action = m === 'fullscreen' ? 'borderless' : 'fullscreen';
-  if (hint) showHint(hint);
+function applyMode(m) {
+  mode = m.mode;
+  document.body.className = `mode-${mode}`;
+  for (const el of document.querySelectorAll('.pin')) el.classList.toggle('on', !!m.alwaysOnTop);
+  $('ov-exit-label').textContent = mode === 'fullscreen' ? 'Exit fullscreen' : 'Normal window';
+  $('ov-swap-label').textContent = mode === 'fullscreen' ? 'Borderless' : 'Fullscreen';
+  $('ov-swap').dataset.action = mode === 'fullscreen' ? 'borderless' : 'fullscreen';
+  if (m.hint) showHint(m.hint);
 }
 
 let hintTimer;
@@ -334,7 +245,7 @@ function showHint(text) {
   $('hint').textContent = text;
   $('hint').hidden = false;
   clearTimeout(hintTimer);
-  hintTimer = setTimeout(() => ($('hint').hidden = true), 5000);
+  hintTimer = setTimeout(() => ($('hint').hidden = true), 6000);
 }
 
 document.addEventListener('click', (e) => {
@@ -342,7 +253,7 @@ document.addEventListener('click', (e) => {
   if (btn) ipcRenderer.send('mirror:action', btn.dataset.action);
 });
 
-// Double-click the toolbar (fullscreen) to leave fullscreen.
+// Double-click the top toolbar in fullscreen to leave fullscreen.
 $('overlay').addEventListener('dblclick', (e) => {
   if (!e.target.closest('button') && mode === 'fullscreen') ipcRenderer.send('mirror:action', 'normal');
 });
@@ -378,58 +289,12 @@ setInterval(() => {
   framesThisSecond = 0;
   decodeMsSum = 0;
   decodeMsCount = 0;
-  $('tb-fps').textContent = firstFrame ? '' : `· ${stats.fps} FPS`;
+  $('tb-fps').textContent = firstFrame ? 'Connecting…' : `${stats.fps} FPS`;
   if (!firstFrame) ipcRenderer.send('mirror:stats', stats);
 }, 1000);
 
 // ---------- Start ----------
 
-function userError(message) {
-  const e = new Error(message);
-  e.userMessage = message;
-  return e;
-}
-
-async function start() {
-  const { socket: video, reader: videoReader } = await connectFirst(opts.port);
-  const deviceName = P.parseDeviceName(await videoReader.read(P.DEVICE_NAME_LENGTH));
-  let audioReader = null;
-  if (opts.audio) {
-    const a = await connect(opts.port);
-    audioReader = new Reader(a);
-  }
-  control = await connect(opts.port);
-  control.setNoDelay(true);
-  control.on('data', () => {}); // messages from the phone (clipboard etc.) are not used yet
-  control.on('error', () => {});
-  if (opts.screenOff) sendControl(P.setDisplayPower(false));
-
-  ipcRenderer.send('mirror:connected', { deviceName });
-  $('status').textContent = 'Waiting for the first picture…';
-
-  if (audioReader)
-    readAudio(audioReader).catch((err) => {
-      if (!closing) console.warn('audio stopped:', err.message);
-    });
-  await readVideo(videoReader);
-}
-
-ipcRenderer.on('mode', (_e, m) => applyMode(m.mode, m));
-ipcRenderer.on('closing', () => {
-  closing = true;
-});
-ipcRenderer.once('init', (_e, o) => {
-  opts = o;
-  $('tb-title').textContent = o.title;
-  applyMode(o.mode, o);
-  start().catch((err) => {
-    if (closing) return;
-    ipcRenderer.send('mirror:ended', {
-      error: true,
-      message: err.userMessage || (firstFrame ? 'MirroX could not connect to your phone.' : 'The connection to your phone was lost.'),
-      details: `${err.stack || err}`,
-      lost: !firstFrame,
-    });
-  });
-});
+ipcRenderer.on('mode', (_e, m) => applyMode(m));
+ipcRenderer.once('init', (_e, o) => applyMode(o));
 ipcRenderer.send('mirror:ready');

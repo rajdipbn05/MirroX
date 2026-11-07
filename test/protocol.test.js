@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const P = require('../src/shared/scrcpy-protocol');
 const { KEYCODES } = require('../src/shared/keycodes');
-const { fitBounds, keepAspect, isOnArea, TITLE_BAR } = require('../src/main/window-geometry');
+const { fitBounds, isOnArea, isOnScreen, TOOLBAR } = require('../src/main/window-geometry');
 
 test('touch message layout matches scrcpy 5.0.1 (32 bytes)', () => {
   const b = P.injectTouch(P.ACTION.DOWN, P.POINTER_ID_MOUSE, { x: 100, y: 200, width: 1080, height: 2400 }, 1, P.BUTTON.PRIMARY, P.BUTTON.PRIMARY);
@@ -66,24 +66,19 @@ test('keyboard map', () => {
   assert.strictEqual(KEYCODES.F1, 131);
 });
 
-test('window fits the screen at the phone shape', () => {
-  const area = { x: 0, y: 0, width: 1920, height: 1040 };
-  const b = fitBounds(area, 1080, 2400, TITLE_BAR);
-  assert.ok(b.height <= 1040 && b.width < b.height);
-  assert.ok(Math.abs((b.height - TITLE_BAR) / b.width - 2400 / 1080) < 0.02);
-  const l = fitBounds(area, 2400, 1080, TITLE_BAR);
-  assert.ok(l.width > l.height && l.width <= 1920);
-});
-
-test('resizing keeps the aspect ratio', () => {
-  const r = keepAspect({ x: 0, y: 0, width: 500, height: 999 }, 'right', 0.45, TITLE_BAR);
-  assert.strictEqual(r.height, Math.round(500 / 0.45) + TITLE_BAR);
-  const t = keepAspect({ x: 0, y: 0, width: 999, height: 432 }, 'bottom', 0.45, TITLE_BAR);
-  assert.strictEqual(t.width, Math.round(400 * 0.45));
+test('window fits the screen at the phone shape (picture area)', () => {
+  const area = { x: 0, y: 0, width: 1536, height: 816 };
+  const b = fitBounds(area, 1080, 2400, TOOLBAR + 40);
+  assert.ok(b.height + TOOLBAR + 40 <= 816 && b.width < b.height);
+  assert.ok(Math.abs(b.height / b.width - 2400 / 1080) < 0.02);
+  const l = fitBounds(area, 2400, 1080, TOOLBAR + 40);
+  assert.ok(l.width > l.height && l.width <= 1536);
 });
 
 test('saved position is only reused if it is on that monitor', () => {
   const area = { x: 0, y: 0, width: 1920, height: 1080 };
   assert.ok(isOnArea({ x: 100, y: 100, width: 400, height: 800 }, area));
   assert.ok(!isOnArea({ x: 2000, y: 100, width: 400, height: 800 }, area));
+  assert.ok(!isOnScreen(null, [area]));
+  assert.ok(isOnScreen({ x: 2000, y: 100, width: 400, height: 800 }, [area, { x: 1920, y: 0, width: 1920, height: 1080 }]));
 });

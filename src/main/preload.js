@@ -16,5 +16,4 @@ contextBridge.exposeInMainWorld('mirrox', {
   onMirrorState: (cb) => ipcRenderer.on('mirror-state', (_e, s) => cb(s)),
   onMirrorStats: (cb) => ipcRenderer.on('mirror-stats', (_e, s) => cb(s)),
   onWindowState: (cb) => ipcRenderer.on('window-state', (_e, s) => cb(s)),
-  onDisplays: (cb) => ipcRenderer.on('displays', (_e, s) => cb(s)),
 });

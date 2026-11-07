@@ -1,36 +1,21 @@
 // Window size/position maths for the mirror window. Pure functions, unit-tested.
 
-const TITLE_BAR = 32; // height of the mirror window's title bar in normal mode
+const TOOLBAR = 30; // height of the MirroX toolbar under the Windows title bar (normal mode)
 
 // Largest size with the video's aspect ratio that fits in `area` (scaled by `fill`), centred.
+// extraH = height not used by the picture (toolbar, and room for the Windows title bar).
 function fitBounds(area, videoW, videoH, extraH, fill = 0.9) {
   const maxW = Math.floor(area.width * fill);
   const maxH = Math.floor(area.height * fill) - extraH;
   const scale = Math.min(maxW / videoW, maxH / videoH);
   const width = Math.max(200, Math.round(videoW * scale));
-  const height = Math.max(150, Math.round(videoH * scale) + extraH);
+  const height = Math.max(150, Math.round(videoH * scale));
   return {
     x: Math.round(area.x + (area.width - width) / 2),
     y: Math.round(area.y + (area.height - height) / 2),
     width,
     height,
   };
-}
-
-// Keep the aspect ratio while the user drags an edge or corner (Windows "will-resize").
-function keepAspect(newBounds, edge, ratio, extraH) {
-  let { x, y, width, height } = newBounds;
-  const byHeight = edge === 'top' || edge === 'bottom';
-  if (byHeight) {
-    const w = Math.round((height - extraH) * ratio);
-    if (edge === 'top' || edge === 'bottom') x += Math.round((width - w) / 2);
-    width = w;
-  } else {
-    const h = Math.round(width / ratio) + extraH;
-    if (edge === 'top-left' || edge === 'top-right') y += height - h;
-    height = h;
-  }
-  return { x, y, width, height };
 }
 
 // Are these bounds (mostly) visible on the given display work area?
@@ -40,4 +25,8 @@ function isOnArea(b, area) {
   return ix * iy >= 0.5 * b.width * b.height;
 }
 
-module.exports = { TITLE_BAR, fitBounds, keepAspect, isOnArea };
+function isOnScreen(b, areas) {
+  return !!b && areas.some((a) => isOnArea(b, a));
+}
+
+module.exports = { TOOLBAR, fitBounds, isOnArea, isOnScreen };

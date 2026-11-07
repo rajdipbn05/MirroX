@@ -1,5 +1,6 @@
 // A pretend phone for automated tests: speaks the scrcpy-server 5.0.1 protocol on a local port.
-//   connection 1 = video (dummy byte, device name, codec id, session header, H.264 packets)
+//   connection 1 = video (dummy byte; then — only once ALL connections are open, exactly like the
+//                  real server — device name, codec id, session header, H.264 packets)
 //   connection 2 = audio (raw PCM: a quiet 440 Hz tone)
 //   connection 3 = control (every message received is logged as JSON lines to stdout)
 // The video plays the portrait test clip, then "rotates" to the landscape clip, in a loop.
@@ -60,8 +61,16 @@ function session(w, h) {
   return b;
 }
 
+let videoSock = null;
+let restartClip = null; // set while streaming; called on RESET_VIDEO
+
 function serveVideo(sock) {
-  sock.write(Buffer.from([0])); // dummy byte
+  sock.write(Buffer.from([0])); // dummy byte, right away
+  videoSock = sock;
+}
+
+// Called when the control connection (the last one) is open: start everything.
+function startVideo(sock) {
   const name = Buffer.alloc(64);
   name.write('Fake Test Phone');
   sock.write(name);
@@ -80,6 +89,7 @@ function serveVideo(sock) {
     frame = 0;
   };
   startClip();
+  restartClip = startClip; // RESET_VIDEO: send config + key frame again
   timer = setInterval(() => {
     if (sock.destroyed) return clearInterval(timer);
     const c = clips[clipIndex];
@@ -134,6 +144,10 @@ function serveControl(sock) {
       const m = buf.subarray(0, size);
       buf = buf.subarray(size);
       const out = { type };
+      if (type === 17) {
+        out.msg = 'reset-video';
+        if (restartClip) restartClip();
+      }
       if (type === 0) Object.assign(out, { msg: 'key', action: m[1], keycode: m.readUInt32BE(2), meta: m.readUInt32BE(10) });
       if (type === 2) Object.assign(out, { msg: 'touch', action: m[1], x: m.readInt32BE(10), y: m.readInt32BE(14), w: m.readUInt16BE(18), h: m.readUInt16BE(20) });
       if (type === 3) Object.assign(out, { msg: 'scroll', v: m.readInt16BE(15) });
@@ -144,11 +158,17 @@ function serveControl(sock) {
 }
 
 let count = 0;
+let audioSock = null;
 const server = net.createServer((sock) => {
   sock.on('error', () => {});
   const n = count++ % 3;
   if (n === 0) serveVideo(sock);
-  else if (n === 1) serveAudio(sock);
-  else serveControl(sock);
+  else if (n === 1) audioSock = sock;
+  else {
+    serveControl(sock);
+    // Like the real server: device name + streams only after video, audio and control are all connected.
+    startVideo(videoSock);
+    serveAudio(audioSock);
+  }
 });
 server.listen(port, '127.0.0.1', () => console.log(JSON.stringify({ listening: port })));

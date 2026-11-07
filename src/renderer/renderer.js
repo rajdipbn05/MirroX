@@ -181,7 +181,7 @@ window.mirrox.onMirrorState(({ state, message, details }) => {
 
 // ---------- Presets + Advanced settings ----------
 const FIELDS = ['audio', 'lowLatency', 'screenOff'];
-let windowState = { mode: 'normal', alwaysOnTop: false, monitor: 'primary' };
+let windowState = { mode: 'normal', alwaysOnTop: false };
 
 function effective() {
   const { settings, presets } = cfg;
@@ -210,19 +210,11 @@ function renderSettings() {
   $('classic').checked = !!settings.classic;
 }
 
-// ---------- Window quick toggles + monitor ----------
+// ---------- Window quick toggles ----------
 function renderWindow() {
   $('win-fullscreen').setAttribute('aria-pressed', String(windowState.mode === 'fullscreen'));
   $('win-borderless').setAttribute('aria-pressed', String(windowState.mode === 'borderless'));
   $('win-top').setAttribute('aria-pressed', String(!!windowState.alwaysOnTop));
-  if ([...$('monitor').options].some((o) => o.value === windowState.monitor)) $('monitor').value = windowState.monitor;
-}
-
-function renderDisplays(list) {
-  const sel = $('monitor');
-  sel.textContent = '';
-  for (const d of list) sel.add(new Option(d.label, d.id));
-  renderWindow();
 }
 
 async function setWindow(w) {
@@ -234,13 +226,12 @@ async function setWindow(w) {
 $('win-fullscreen').addEventListener('click', () => setWindow({ mode: windowState.mode === 'fullscreen' ? 'normal' : 'fullscreen' }));
 $('win-borderless').addEventListener('click', () => setWindow({ mode: windowState.mode === 'borderless' ? 'normal' : 'borderless' }));
 $('win-top').addEventListener('click', () => setWindow({ alwaysOnTop: !windowState.alwaysOnTop }));
-$('monitor').addEventListener('change', () => setWindow({ monitor: $('monitor').value }));
 $('classic').addEventListener('change', () => saveSettings({ preset: cfg.settings.preset, classic: $('classic').checked }));
 window.mirrox.onWindowState((w) => {
   windowState = w;
   renderWindow();
 });
-window.mirrox.onDisplays(renderDisplays);
+
 
 async function saveSettings(next) {
   cfg.settings = await window.mirrox.setSettings(next);
@@ -283,7 +274,7 @@ window.mirrox.getState().then((st) => {
   $('version').textContent = `v${st.version}`;
   cfg = { settings: st.settings, presets: st.presets, choices: st.choices };
   windowState = st.window;
-  renderDisplays(st.displays);
+  renderWindow();
   renderSettings();
   if (st.phone) phone = st.phone;
   render();
