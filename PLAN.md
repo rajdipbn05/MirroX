@@ -2,6 +2,8 @@
 
 This page shows what is done and what comes next. It is updated after every stage.
 
+**⬇️ Download the latest app:** https://github.com/rajdipbn05/MirroX/releases/latest (click the `.exe` file under *Assets*)
+
 **Status key:** ✅ Done · 🔨 In progress · ⏳ Not started · 🧪 Waiting for your test
 
 ---
