@@ -80,7 +80,7 @@ function startMirror() {
   active = testPort ? controller : engineFor();
   if (active === classic) {
     const w = controller.modeInfo();
-    classic.start({ serial: s.serial, name: s.name }, { ...perf, fullscreen: w.mode === 'fullscreen', borderless: w.mode === 'borderless', alwaysOnTop: w.alwaysOnTop });
+    classic.start({ serial: s.serial, name: s.name }, { ...perf, fullscreen: w.mode === 'fullscreen', borderless: w.mode === 'borderless', alwaysOnTop: w.alwaysOnTop, control: settings.control });
   } else {
     controller.start(testPort ? { testPort, name: 'Test phone' } : { serial: s.serial, name: s.name }, perf);
   }
@@ -94,6 +94,7 @@ function stopMirror() {
 app.whenReady().then(() => {
   settings = settingsStore.load();
   controller = new MirrorController(windowStore, () => (win && !win.isDestroyed() ? win.getBounds() : null));
+  controller.control = settings.control;
   createWindow();
 
   watcher.on('change', (state) => send('phone-state', state));
@@ -114,6 +115,7 @@ app.whenReady().then(() => {
     version: app.getVersion(),
     settings: { preset: settings.preset, custom: settings.custom, newWindow: settings.newWindow },
     window: controller.modeInfo(),
+    control: settings.control,
     presets: presets.PRESETS,
     choices: {
       resolutions: presets.RESOLUTIONS,
@@ -148,6 +150,14 @@ app.whenReady().then(() => {
       if (otherChanged) return { ...after, restart: true };
     }
     return after;
+  });
+
+  // Keyboard & mouse control on/off: live in the MirroX window; scrcpy's window needs a restart.
+  ipcMain.handle('set-control', (_e, on) => {
+    settings.control = !!on;
+    saveSettings();
+    controller.setControl(settings.control);
+    return { control: settings.control, restart: classic.running };
   });
 
   ipcMain.handle('start-mirror', startMirror);

@@ -244,7 +244,7 @@ class MirrorController extends EventEmitter {
 
   onWindowReady() {
     this.ready = true;
-    this.win.webContents.send('init', { title: this.title, framed: this.framed, ...this.modeInfo() });
+    this.win.webContents.send('init', { title: this.title, framed: this.framed, control: this.control !== false, ...this.modeInfo() });
     if (this.client && this.client.session) this.sendToWindow('session', this.client.session);
     this.replay(); // a new window needs the picture from the last key frame on
     if (this.pendingFullscreen) {
@@ -379,6 +379,12 @@ class MirrorController extends EventEmitter {
       return 'Move the mouse to the top edge to drag the window or get buttons. Resize from any edge. Alt+F returns to a normal window.';
     }
     return null;
+  }
+
+  // Keyboard & mouse control on/off (applies immediately).
+  setControl(on) {
+    this.control = on;
+    this.sendToWindow('control', on);
   }
 
   setAlwaysOnTop(on) {

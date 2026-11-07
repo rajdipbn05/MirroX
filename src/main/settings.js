@@ -33,7 +33,7 @@ function file() {
 }
 
 function defaults() {
-  return { ...JSON.parse(JSON.stringify(DEFAULT_SETTINGS)), window: JSON.parse(JSON.stringify(DEFAULT_WINDOW)), newWindow: false };
+  return { ...JSON.parse(JSON.stringify(DEFAULT_SETTINGS)), window: JSON.parse(JSON.stringify(DEFAULT_WINDOW)), newWindow: false, control: true };
 }
 
 function load() {
@@ -43,7 +43,8 @@ function load() {
       preset: raw.preset === 'custom' || PRESETS[raw.preset] ? raw.preset : DEFAULT_SETTINGS.preset,
       custom: sanitize({ ...DEFAULT_SETTINGS.custom, ...(raw.custom || {}) }),
       window: pickWindow(raw.window),
-      newWindow: !!raw.newWindow, // default off: the scrcpy window + MirroX bar is the default
+      newWindow: !!raw.newWindow, // default off: scrcpy's own window is the default
+      control: raw.control !== false, // keyboard & mouse control of the phone (default on)
     };
   } catch {
     return defaults();

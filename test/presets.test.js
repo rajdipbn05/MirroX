@@ -55,3 +55,8 @@ test('reads FPS and picture size from scrcpy output', () => {
   assert.deepStrictEqual(parseStats('INFO: Texture: 1920x864'), { width: 1920, height: 864 });
   assert.strictEqual(parseStats('INFO: Renderer: direct3d'), null);
 });
+
+test('keyboard & mouse control off -> --no-control (scrcpy window)', () => {
+  assert.ok(buildArgs(dev, { ...effectiveSettings({ preset: 'normal' }), control: false }).includes('--no-control'));
+  assert.ok(!buildArgs(dev, { ...effectiveSettings({ preset: 'normal' }), control: true }).includes('--no-control'));
+});

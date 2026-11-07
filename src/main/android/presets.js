@@ -84,6 +84,7 @@ function buildArgs({ serial, name }, settings, { codecOptions = true } = {}) {
   if (s.alwaysOnTop) args.push('--always-on-top');
   if (!s.audio) args.push('--no-audio');
   if (s.screenOff) args.push('--turn-screen-off');
+  if (settings.control === false) args.push('--no-control'); // keyboard & mouse control off
   if (s.lowLatency) {
     args.push('--video-codec=h264'); // fastest to encode and decode on almost every phone
     // Ask the phone's encoder for real-time priority. Dropped automatically if the phone rejects it.

@@ -231,6 +231,22 @@ $('win-fullscreen').addEventListener('click', () => setWindow({ mode: windowStat
 $('win-borderless').addEventListener('click', () => setWindow({ mode: windowState.mode === 'borderless' ? 'normal' : 'borderless' }));
 $('win-top').addEventListener('click', () => setWindow({ alwaysOnTop: !windowState.alwaysOnTop }));
 $('newWindow').addEventListener('change', () => saveSettings({ preset: cfg.settings.preset, newWindow: $('newWindow').checked }));
+// ---------- Keyboard & mouse control ----------
+let controlOn = true;
+function renderControl() {
+  $('control').setAttribute('aria-pressed', String(controlOn));
+  $('control').textContent = `⌨️🖱️ Keyboard & mouse: ${controlOn ? 'On' : 'Off'}`;
+}
+$('control').addEventListener('click', async () => {
+  const r = await window.mirrox.setControl(!controlOn);
+  controlOn = r.control;
+  renderControl();
+  if (r.restart) {
+    showNote('Keyboard & mouse control changes when mirroring restarts.');
+    $('restart-btn').hidden = false;
+  }
+});
+
 window.mirrox.onWindowState((w) => {
   windowState = w;
   renderWindow();
@@ -279,6 +295,8 @@ window.mirrox.getState().then((st) => {
   cfg = { settings: st.settings, presets: st.presets, choices: st.choices };
   windowState = st.window;
   renderWindow();
+  controlOn = st.control !== false;
+  renderControl();
   renderSettings();
   if (st.phone) phone = st.phone;
   render();

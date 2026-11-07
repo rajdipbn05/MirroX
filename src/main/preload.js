@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld('mirrox', {
   restartMirror: () => ipcRenderer.invoke('restart-mirror'),
   setSettings: (s) => ipcRenderer.invoke('set-settings', s),
   setWindow: (w) => ipcRenderer.invoke('set-window', w),
+  setControl: (on) => ipcRenderer.invoke('set-control', on),
   copyText: (text) => ipcRenderer.invoke('copy-text', text),
   openLink: (url) => ipcRenderer.invoke('open-link', url),
   closeApps: () => ipcRenderer.invoke('close-apps'),

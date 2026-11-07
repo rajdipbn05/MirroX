@@ -45,7 +45,8 @@ svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width:
 
 /* ---------- Video ---------- */
 #stage { position: relative; flex: 1; min-height: 0; }
-#screen { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; display: block; cursor: default; }
+/* Sized exactly to the picture by mirror.js (no stretching / object-fit), so no edge artifacts */
+#screen { position: absolute; left: 0; top: 0; display: block; cursor: default; outline: none; border: 0; }
 #status {
   position: absolute; inset: 0; display: grid; place-items: center;
   color: var(--muted); font-size: 15px; text-align: center; padding: 20px; pointer-events: none;

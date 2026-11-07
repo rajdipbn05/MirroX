@@ -135,6 +135,34 @@ async function fakePhoneTest() {
   const t = touches[0] || {};
   check('touch inside the phone screen', t.x > 0 && t.y > 0 && t.x < t.w && t.y < t.h, JSON.stringify(t));
 
+  // 3b. Picture is sized exactly (no stretching), keeping the phone's shape.
+  const fit = await M().evaluate(() => {
+    const c = document.getElementById('screen');
+    const r = c.getBoundingClientRect();
+    return { ratioCanvas: c.width / c.height, ratioShown: r.width / r.height };
+  });
+  check('picture keeps its shape', Math.abs(fit.ratioCanvas - fit.ratioShown) < 0.02, JSON.stringify(fit));
+
+  // 3c. Keyboard & mouse switch: off -> clicks/keys don't reach the phone; on again -> they do.
+  await main.click('#control');
+  await main.waitForTimeout(500);
+  const before = messages.length;
+  const box2 = await M().locator('#screen').boundingBox();
+  await M().mouse.click(box2.x + box2.width / 3, box2.y + box2.height / 3);
+  await M().keyboard.press('b');
+  await M().waitForTimeout(800);
+  check('control off: nothing sent to the phone', messages.length === before, JSON.stringify(messages.slice(before)));
+  check('control switch shows Off', /Off/.test(await main.textContent('#control')));
+  await main.click('#control');
+  await main.waitForTimeout(500);
+  // The fake phone rotates every 2 s: measure right before clicking, and retry if it rotated meanwhile.
+  for (let i = 0; i < 4 && !messages.slice(before).some((m) => m.msg === 'touch'); i++) {
+    const b = await M().locator('#screen').boundingBox();
+    await M().mouse.click(b.x + b.width / 3, b.y + b.height / 3);
+    await M().waitForTimeout(600);
+  }
+  check('control on again: clicks reach the phone', messages.slice(before).some((m) => m.msg === 'touch'), JSON.stringify({ enabled: await M().evaluate(() => window.__controlEnabled), sent: messages.slice(before), box: box2 }));
+
   // 4. Window modes. Borderless swaps the window: the picture must continue.
   await M().click('#toolbar [data-action="borderless"]');
   await main.waitForTimeout(1500);

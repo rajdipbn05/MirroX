@@ -8,12 +8,31 @@ const { KEYCODES, ANDROID_HOME, metaState } = require('../../shared/keycodes');
 
 const $ = (id) => document.getElementById(id);
 const canvas = $('screen');
-const ctx = canvas.getContext('2d', { alpha: false, desynchronized: true });
+// Standard drawing path (the "desynchronized" low-latency path left a thin coloured line around
+// the picture on some Windows graphics drivers).
+const ctx = canvas.getContext('2d', { alpha: false });
+
+// Place the canvas exactly over the picture area (letterboxed inside the window), in whole pixels.
+function layoutCanvas() {
+  const stage = $('stage').getBoundingClientRect();
+  if (!canvas.width || !canvas.height || !stage.width || !stage.height) return;
+  const scale = Math.min(stage.width / canvas.width, stage.height / canvas.height);
+  const w = Math.floor(canvas.width * scale);
+  const h = Math.floor(canvas.height * scale);
+  canvas.style.width = `${w}px`;
+  canvas.style.height = `${h}px`;
+  canvas.style.left = `${Math.floor((stage.width - w) / 2)}px`;
+  canvas.style.top = `${Math.floor((stage.height - h) / 2)}px`;
+}
+new ResizeObserver(layoutCanvas).observe($('stage'));
 
 let mode = 'normal';
 let videoSize = { width: 0, height: 0 }; // current video size, as the phone sees it
 
 const sendControl = (buf) => ipcRenderer.send('mirror:control', buf);
+let controlEnabled = true; // "Keyboard & mouse control" switch on the main screen
+// Mouse/keyboard input goes to the phone only when control is on.
+const sendInput = (buf) => controlEnabled && sendControl(buf);
 
 // ---------- Video ----------
 
@@ -62,6 +81,7 @@ function onFrame(frame) {
   if (canvas.width !== w || canvas.height !== h) {
     canvas.width = w;
     canvas.height = h;
+    layoutCanvas();
   }
   ctx.drawImage(frame, 0, 0, w, h);
   const t = recvTimes.get(frame.timestamp);
@@ -153,32 +173,33 @@ function toPhone(e, clamp) {
 
 let touching = false;
 canvas.addEventListener('pointerdown', (e) => {
+  if (!controlEnabled) return;
   if (e.button === 0) {
     const pos = toPhone(e, false);
     if (!pos) return;
     touching = true;
     canvas.setPointerCapture(e.pointerId);
-    sendControl(P.injectTouch(P.ACTION.DOWN, P.POINTER_ID_MOUSE, pos, 1, P.BUTTON.PRIMARY, P.BUTTON.PRIMARY));
+    sendInput(P.injectTouch(P.ACTION.DOWN, P.POINTER_ID_MOUSE, pos, 1, P.BUTTON.PRIMARY, P.BUTTON.PRIMARY));
   } else if (e.button === 2) {
-    sendControl(P.backOrScreenOn(P.ACTION.DOWN)); // right click = Back
+    sendInput(P.backOrScreenOn(P.ACTION.DOWN)); // right click = Back
   } else if (e.button === 1) {
-    sendControl(P.injectKeycode(P.ACTION.DOWN, ANDROID_HOME)); // middle click = Home
+    sendInput(P.injectKeycode(P.ACTION.DOWN, ANDROID_HOME)); // middle click = Home
   }
 });
 canvas.addEventListener('pointermove', (e) => {
   if (!touching) return;
   const pos = toPhone(e, true);
-  if (pos) sendControl(P.injectTouch(P.ACTION.MOVE, P.POINTER_ID_MOUSE, pos, 1, 0, P.BUTTON.PRIMARY));
+  if (pos) sendInput(P.injectTouch(P.ACTION.MOVE, P.POINTER_ID_MOUSE, pos, 1, 0, P.BUTTON.PRIMARY));
 });
 canvas.addEventListener('pointerup', (e) => {
   if (e.button === 0 && touching) {
     touching = false;
     const pos = toPhone(e, true);
-    if (pos) sendControl(P.injectTouch(P.ACTION.UP, P.POINTER_ID_MOUSE, pos, 0, P.BUTTON.PRIMARY, 0));
+    if (pos) sendInput(P.injectTouch(P.ACTION.UP, P.POINTER_ID_MOUSE, pos, 0, P.BUTTON.PRIMARY, 0));
   } else if (e.button === 2) {
-    sendControl(P.backOrScreenOn(P.ACTION.UP));
+    sendInput(P.backOrScreenOn(P.ACTION.UP));
   } else if (e.button === 1) {
-    sendControl(P.injectKeycode(P.ACTION.UP, ANDROID_HOME));
+    sendInput(P.injectKeycode(P.ACTION.UP, ANDROID_HOME));
   }
 });
 canvas.addEventListener('contextmenu', (e) => e.preventDefault());
@@ -190,7 +211,7 @@ canvas.addEventListener(
     const pos = toPhone(e, true);
     if (!pos) return;
     const unit = e.deltaMode === 1 ? 1 : 100; // lines or pixels
-    sendControl(P.injectScroll(pos, -e.deltaX / unit, -e.deltaY / unit));
+    sendInput(P.injectScroll(pos, -e.deltaX / unit, -e.deltaY / unit));
   },
   { passive: false }
 );
@@ -214,17 +235,17 @@ window.addEventListener('keydown', (e) => {
     return;
   }
   const code = KEYCODES[e.code];
-  if (code === undefined) return;
+  if (code === undefined || !controlEnabled) return;
   e.preventDefault();
   keysDown.add(e.code);
-  sendControl(P.injectKeycode(P.ACTION.DOWN, code, e.repeat ? 1 : 0, metaState(e)));
+  sendInput(P.injectKeycode(P.ACTION.DOWN, code, e.repeat ? 1 : 0, metaState(e)));
 });
 window.addEventListener('keyup', (e) => {
   const code = KEYCODES[e.code];
   if (code === undefined || !keysDown.has(e.code)) return;
   e.preventDefault();
   keysDown.delete(e.code);
-  sendControl(P.injectKeycode(P.ACTION.UP, code, 0, metaState(e)));
+  sendInput(P.injectKeycode(P.ACTION.UP, code, 0, metaState(e)));
 });
 // Never leave a key "stuck down" on the phone when the window loses focus.
 window.addEventListener('blur', () => {
@@ -301,5 +322,21 @@ setInterval(() => {
 // ---------- Start ----------
 
 ipcRenderer.on('mode', (_e, m) => applyMode(m));
-ipcRenderer.once('init', (_e, o) => applyMode(o));
+ipcRenderer.on('control', (_e, on) => setControl(on));
+ipcRenderer.once('init', (_e, o) => {
+  setControl(o.control !== false);
+  applyMode(o);
+});
+
+function setControl(on) {
+  if (!on) {
+    // Release anything held down before turning control off.
+    for (const c of keysDown) sendControl(P.injectKeycode(P.ACTION.UP, KEYCODES[c]));
+    keysDown.clear();
+    touching = false;
+  }
+  controlEnabled = on;
+  window.__controlEnabled = on; // read by automated tests
+  canvas.style.cursor = on ? 'default' : 'not-allowed';
+}
 ipcRenderer.send('mirror:ready');

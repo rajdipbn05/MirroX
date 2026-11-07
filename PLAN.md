@@ -31,7 +31,7 @@ This page shows what is done and what comes next. It is updated after every stag
 | 5 | First-time setup walk-through | Opens on first launch; guides step by step through USB Debugging with progress, building on the Stage 2 guide | ⏳ |
 | 6 | Window controls | Done in Stage 3b, and they now work *while* mirroring without a restart | 🧪 (with 3b) |
 | 7 | Phone audio switch | "Phone sound" switch added in Advanced settings (Stage 3) | 🧪 |
-| 8 | Keyboard & mouse control switch | Control already works; add an on/off switch | ⏳ |
+| 8 | Keyboard & mouse control switch | **"Control: Keyboard & mouse On/Off"** on the main screen. Instant in the MirroX window; scrcpy's window picks it up on the next start | 🧪 v0.4.4 |
 | 9 | Game key mapping | Place keys (W, A, S, D, Space…) on spots of the phone screen to play games with the keyboard; save layouts per game | ⏳ |
 | 10 | Record & screenshot | Record the mirror with sound to an MP4 video; one-click screenshot | ⏳ |
 | 11 | Remember settings | Preset, Advanced settings, mirror window position/size/mode, always-on-top | 🧪 (with 3b) |
@@ -89,3 +89,5 @@ Phone audio needs Android 11+, so every target phone supports it.
 - **2026-11-07** — v0.4.2: scrcpy window is the default again; MirroX bar on top (Fullscreen, Stop, FPS; Exit-fullscreen button at the top edge in fullscreen). New MirroX window kept as an experimental option, off.
 - **2026-11-07** — v0.4.2 feedback: bar not wanted; the top-edge Exit-fullscreen button didn't work and isn't wanted; Esc should exit fullscreen. Experimental window: phone log "Video capture reset" then the connection dropped.
 - **2026-11-07** — v0.4.3: bar and exit button removed; Esc exits fullscreen (Windows keyboard helper, only while the mirror is fullscreen). Experimental window no longer asks the phone to restart its video (that is what made the Motorola drop the connection) — it replays the latest video to a new window instead.
+- **2026-11-07** — v0.4.3 confirmed: Esc exits fullscreen; the experimental MirroX window now works on the Motorola. Found a thin yellow line around the picture in it; asked for a keyboard & mouse on/off switch.
+- **2026-11-07** — v0.4.4: MirroX window draws the picture at its exact size with the standard drawing path (fixes the edge line); Keyboard & mouse On/Off switch.
