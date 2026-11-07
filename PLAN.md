@@ -67,3 +67,5 @@ Multiple phones at once · light/dark theme · custom branding · Mac version
 
 Target: popular brands (Samsung, Motorola, Xiaomi, OnePlus, Pixel, Oppo, Vivo, Realme…) on Android 14–17.
 Phone audio needs Android 11+, so every target phone supports it.
+- **2026-11-07** — v0.1.0 on your laptop: "phone connection helper could not start". The same app worked on GitHub's clean Windows test machine, so the cause is something on your laptop (most likely antivirus, or another program using the phone connection).
+- **2026-11-07** — v0.1.1: "Show details" / "Copy details" on errors, clearer messages for each likely cause, more time for the helper to start. Every build is now tested on a real Windows machine before it's published.
