@@ -135,7 +135,7 @@ async function fakePhoneTest() {
 
   // 5. The window reshapes when the "phone" rotates (the clip switches every 2 s).
   const shape = async () => {
-    const c = await mirror.evaluate(() => ({ w: document.getElementById('screen').width, h: document.getElementById('screen').height }));
+    const c = await mirror.evaluate(() => ({ w: document.getElementById('screen').width, h: document.getElementById('screen').height, decoderErrors: window.__decoderErrors }));
     const b = await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find((w) => w.webContents.getURL().includes('mirror.html')).getBounds());
     return { c, b };
   };

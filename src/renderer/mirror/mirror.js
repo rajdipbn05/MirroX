@@ -97,6 +97,8 @@ async function connectFirst(port) {
 
 let decoder = null;
 let decoderCodec = null;
+let decoderConfig = null; // the SPS/PPS the decoder was set up with
+let decoderErrors = 0;
 let pendingConfig = null;
 let waitingKeyFrame = true;
 const recvTimes = new Map(); // timestamp -> time received (for the delay statistic)
@@ -105,19 +107,26 @@ let decodeMsSum = 0;
 let decodeMsCount = 0;
 let firstFrame = true;
 
-function makeDecoder(codec) {
+// A new decoder is made whenever the phone changes its video format (e.g. on rotation):
+// some Windows decoders can't switch picture size in the middle of a stream.
+function makeDecoder(codec, config) {
   if (decoder && decoder.state !== 'closed') decoder.close();
   decoder = new VideoDecoder({
     output: onFrame,
     error: (e) => {
       console.error('decoder error', e);
+      decoderErrors++;
+      window.__decoderErrors = decoderErrors; // read by automated tests
       waitingKeyFrame = true;
       decoderCodec = null; // re-create on next config
       sendControl(P.simple(P.MSG.RESET_VIDEO)); // ask the phone for a fresh key frame
     },
   });
-  decoder.configure({ codec, optimizeForLatency: true, hardwareAcceleration: 'no-preference' });
+  const conf = { codec, optimizeForLatency: true, hardwareAcceleration: 'no-preference' };
+  if (videoSize.width) Object.assign(conf, { codedWidth: videoSize.width, codedHeight: videoSize.height });
+  decoder.configure(conf);
   decoderCodec = codec;
+  decoderConfig = config;
 }
 
 function onFrame(frame) {
@@ -151,7 +160,11 @@ function onVideoPacket(h, data) {
   let payload = data;
   if (pendingConfig) {
     const codec = P.h264CodecString(pendingConfig);
-    if (!decoder || decoder.state === 'closed' || codec !== decoderCodec) makeDecoder(codec);
+    const changed = !decoderConfig || !pendingConfig.equals(decoderConfig);
+    if (!decoder || decoder.state === 'closed' || codec !== decoderCodec || changed) {
+      makeDecoder(codec, pendingConfig);
+      waitingKeyFrame = true;
+    }
     payload = Buffer.concat([pendingConfig, data]);
     pendingConfig = null;
   }
@@ -360,6 +373,7 @@ setInterval(() => {
     width: canvas.width,
     height: canvas.height,
     decodeMs: decodeMsCount ? Math.round(decodeMsSum / decodeMsCount) : null,
+    decoderErrors,
   };
   framesThisSecond = 0;
   decodeMsSum = 0;
