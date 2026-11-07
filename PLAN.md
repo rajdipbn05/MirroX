@@ -82,3 +82,4 @@ Phone audio needs Android 11+, so every target phone supports it.
 - **2026-11-07** — Stage 3 built (v0.3.0): Gaming / Normal / Custom presets, Advanced settings, live FPS counter, settings remembered. Waiting for your smoothness numbers.
 - **2026-11-07** — v0.3.0 window problems reported (Gaming opened fullscreen/borderless; hard to leave; no monitor choice).
 - **2026-11-07** — v0.4.0 (Stage 3b): new MirroX mirror window replacing scrcpy's window, with all 7 requested window fixes. Tested here and on GitHub's Windows machine with a pretend phone: video at ~60 FPS, clicks/keys reach the phone, Borderless/Fullscreen buttons, Alt+F, Esc, rotation reshapes the window. Not yet tested with a real phone — please test, then send FPS/delay numbers.
+- **2026-11-07** — v0.4.0 published after passing all Windows tests (incl. rotation fix: decoder restarts when the phone changes picture size).
