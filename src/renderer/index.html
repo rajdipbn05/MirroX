@@ -40,10 +40,54 @@
         <pre class="details" id="details" hidden></pre>
       </section>
 
+      <section class="card settings" id="settings">
+        <div class="segmented" id="preset-seg" role="radiogroup" aria-label="Mode">
+          <button data-preset="gaming" role="radio">🎮 Gaming</button>
+          <button data-preset="normal" role="radio">Normal</button>
+          <button data-preset="custom" role="radio">Custom</button>
+        </div>
+        <p class="preset-desc" id="preset-desc"></p>
+        <button class="link" id="adv-toggle" aria-expanded="false">Advanced settings ▸</button>
+        <div class="advanced" id="advanced" hidden>
+          <label class="slider">
+            <span>Resolution <b id="res-val"></b></span>
+            <input type="range" id="res" min="0" step="1" />
+            <small>Lower = less delay and smoother on slower phones.</small>
+          </label>
+          <label class="slider">
+            <span>Quality <b id="bitrate-val"></b></span>
+            <input type="range" id="bitrate" step="1" />
+            <small>Higher = sharper picture. Too high can add delay on some phones.</small>
+          </label>
+          <label class="slider">
+            <span>Max frame rate <b id="fps-val"></b></span>
+            <input type="range" id="fps" min="0" step="1" />
+            <small>Your phone can't go above its own screen's refresh rate.</small>
+          </label>
+          <label class="row">
+            <span>Screen rotation</span>
+            <select id="orientation">
+              <option value="auto">Follow the phone</option>
+              <option value="landscape">Landscape</option>
+              <option value="portrait">Portrait</option>
+            </select>
+          </label>
+          <div class="toggles">
+            <label class="toggle"><input type="checkbox" id="fullscreen" /><span>Fullscreen</span></label>
+            <label class="toggle"><input type="checkbox" id="borderless" /><span>Borderless window</span></label>
+            <label class="toggle"><input type="checkbox" id="alwaysOnTop" /><span>Always on top</span></label>
+            <label class="toggle"><input type="checkbox" id="audio" /><span>Phone sound</span></label>
+            <label class="toggle"><input type="checkbox" id="lowLatency" /><span>Low-delay mode</span></label>
+            <label class="toggle"><input type="checkbox" id="screenOff" /><span>Turn phone screen off</span></label>
+          </div>
+        </div>
+      </section>
+
       <button id="mirror-btn" class="primary" disabled>Start Mirroring</button>
 
       <section class="note" id="note" hidden>
         <p id="note-message"></p>
+        <button class="secondary" id="restart-btn" hidden>Restart mirroring to apply</button>
         <div class="details-row" id="mdetails-row" hidden>
           <button class="link" id="mdetails-toggle">Show details</button>
           <button class="link" id="mdetails-copy" hidden>Copy details</button>

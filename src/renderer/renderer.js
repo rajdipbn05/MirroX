@@ -3,6 +3,8 @@
 const $ = (id) => document.getElementById(id);
 let phone = null; // latest phone state from the main process
 let mirrorState = 'stopped';
+let stats = {}; // live numbers while mirroring: fps, skipped, width, height
+let cfg = null; // { settings, presets, choices } from the main process
 
 // ---------- "Show details" / "Copy details" ----------
 function detailsBox(prefix) {
@@ -39,7 +41,11 @@ function render() {
   $('phone-card').dataset.status = mirroring && s.ready ? 'mirroring' : s.status;
   $('phone-name').textContent = s.title;
   $('phone-subtitle').textContent =
-    mirrorState === 'running' && s.ready ? 'Mirroring' : mirrorState === 'starting' && s.ready ? 'Starting…' : s.subtitle;
+    mirrorState === 'running' && s.ready
+      ? `Mirroring${stats.fps != null ? ` · ${stats.fps} FPS` : ''}`
+      : mirrorState === 'starting' && s.ready
+        ? 'Starting…'
+        : s.subtitle;
 
   $('help').hidden = !s.message;
   $('help-message').textContent = s.message || '';
@@ -99,6 +105,7 @@ $('mirror-btn').addEventListener('click', () => {
 });
 
 function showNote(text, isError, details) {
+  $('restart-btn').hidden = true;
   $('note').hidden = !text;
   $('note').classList.toggle('error', !!isError);
   $('note-message').textContent = text || '';
@@ -146,16 +153,101 @@ window.mirrox.onPhoneState((s) => {
   render();
 });
 
+const RUNNING_NOTE = 'Your phone screen is showing in its own window. Close that window or press Stop to end. Alt+F switches fullscreen on/off.';
+
+function liveNote() {
+  const parts = [];
+  if (stats.fps != null) parts.push(`${stats.fps} FPS`);
+  if (stats.width) parts.push(`picture ${stats.width}×${stats.height}`);
+  if (stats.skipped) parts.push(`${stats.skipped} frames dropped by this computer`);
+  return parts.length ? `${RUNNING_NOTE}\nLive: ${parts.join(' · ')}` : RUNNING_NOTE;
+}
+
+window.mirrox.onMirrorStats((s) => {
+  stats = s;
+  if (mirrorState === 'running' && $('restart-btn').hidden) $('note-message').textContent = liveNote();
+  render();
+});
+
 window.mirrox.onMirrorState(({ state, message, details }) => {
   mirrorState = state === 'error' ? 'stopped' : state;
-  if (state === 'running') showNote('Your phone screen is showing in its own window. Close that window or press Stop to end.');
+  if (state === 'starting') stats = {};
+  if (state === 'running') showNote(liveNote());
   else if (state === 'stopped') showNote('');
   else if (state === 'error') showNote(message, true, details);
   render();
 });
 
-window.mirrox.getState().then(({ phone: s, version }) => {
-  $('version').textContent = `v${version}`;
-  if (s) phone = s;
+// ---------- Presets + Advanced settings ----------
+const FIELDS = ['fullscreen', 'borderless', 'alwaysOnTop', 'audio', 'lowLatency', 'screenOff'];
+
+function effective() {
+  const { settings, presets } = cfg;
+  return settings.preset !== 'custom' ? presets[settings.preset].settings : settings.custom;
+}
+
+function renderSettings() {
+  const { settings, presets, choices } = cfg;
+  const v = effective();
+  for (const b of $('preset-seg').querySelectorAll('button')) b.setAttribute('aria-checked', String(b.dataset.preset === settings.preset));
+  $('preset-desc').textContent =
+    settings.preset === 'custom' ? 'Your own settings from Advanced settings.' : presets[settings.preset].description;
+
+  $('res').max = choices.resolutions.length - 1;
+  $('res').value = Math.max(0, choices.resolutions.indexOf(v.maxSize));
+  $('res-val').textContent = v.maxSize ? `${v.maxSize} px` : "Phone's full resolution";
+  $('bitrate').min = choices.bitrateMin;
+  $('bitrate').max = choices.bitrateMax;
+  $('bitrate').value = v.bitrate;
+  $('bitrate-val').textContent = `${v.bitrate} Mbps`;
+  $('fps').max = choices.fps.length - 1;
+  $('fps').value = Math.max(0, choices.fps.indexOf(v.maxFps));
+  $('fps-val').textContent = `${v.maxFps} FPS`;
+  $('orientation').value = v.orientation;
+  for (const f of FIELDS) $(f).checked = !!v[f];
+}
+
+async function saveSettings(next) {
+  cfg.settings = await window.mirrox.setSettings(next);
+  renderSettings();
+  if (mirrorState === 'running' || mirrorState === 'starting') {
+    showNote('Settings changed. Restart mirroring to use them.');
+    $('restart-btn').hidden = false;
+  }
+}
+
+// Changing any Advanced value switches to "Custom", starting from what was showing.
+function changeCustom(field, value) {
+  saveSettings({ preset: 'custom', custom: { ...effective(), [field]: value } });
+}
+
+$('preset-seg').addEventListener('click', (e) => {
+  const preset = e.target.closest('button')?.dataset.preset;
+  if (preset && preset !== cfg.settings.preset) saveSettings({ preset });
+});
+$('adv-toggle').addEventListener('click', () => {
+  const open = $('advanced').hidden;
+  $('advanced').hidden = !open;
+  $('adv-toggle').textContent = open ? 'Advanced settings ▾' : 'Advanced settings ▸';
+  $('adv-toggle').setAttribute('aria-expanded', String(open));
+});
+$('res').addEventListener('input', () => ($('res-val').textContent = cfg.choices.resolutions[$('res').value] ? `${cfg.choices.resolutions[$('res').value]} px` : "Phone's full resolution"));
+$('res').addEventListener('change', () => changeCustom('maxSize', cfg.choices.resolutions[$('res').value]));
+$('bitrate').addEventListener('input', () => ($('bitrate-val').textContent = `${$('bitrate').value} Mbps`));
+$('bitrate').addEventListener('change', () => changeCustom('bitrate', Number($('bitrate').value)));
+$('fps').addEventListener('input', () => ($('fps-val').textContent = `${cfg.choices.fps[$('fps').value]} FPS`));
+$('fps').addEventListener('change', () => changeCustom('maxFps', cfg.choices.fps[$('fps').value]));
+$('orientation').addEventListener('change', () => changeCustom('orientation', $('orientation').value));
+for (const f of FIELDS) $(f).addEventListener('change', () => changeCustom(f, $(f).checked));
+$('restart-btn').addEventListener('click', () => {
+  showNote('');
+  window.mirrox.restartMirror();
+});
+
+window.mirrox.getState().then((st) => {
+  $('version').textContent = `v${st.version}`;
+  cfg = { settings: st.settings, presets: st.presets, choices: st.choices };
+  renderSettings();
+  if (st.phone) phone = st.phone;
   render();
 });

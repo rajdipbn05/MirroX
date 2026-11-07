@@ -1,3 +1,5 @@
+[hidden] { display: none !important; }
+
 :root {
   --bg: #0f1115;
   --card: #181b22;
@@ -38,7 +40,8 @@ header { padding: 28px 32px 8px; }
 h1 { margin: 0; font-size: 22px; letter-spacing: -0.3px; }
 .tagline { margin: 0; color: var(--muted); font-size: 13px; }
 
-main { flex: 1; padding: 16px 32px; display: flex; flex-direction: column; gap: 14px; }
+main { flex: 1; padding: 16px 32px; display: flex; flex-direction: column; gap: 14px; overflow-y: auto; }
+body { height: 100vh; }
 
 .card {
   background: var(--card);
@@ -142,3 +145,28 @@ select {
 ol { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 8px; }
 ol li { padding-left: 4px; user-select: text; }
 .tip { margin: 0; padding: 10px 12px; border-radius: 10px; font-size: 14px; color: var(--amber); background: rgba(242, 179, 61, 0.1); }
+
+/* Presets + Advanced */
+.settings { padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; }
+.segmented { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; padding: 4px; border-radius: 12px; background: var(--bg); }
+.segmented button {
+  padding: 9px 6px; border: none; border-radius: 9px; cursor: pointer;
+  background: transparent; color: var(--muted); font: inherit; font-size: 14px; font-weight: 600;
+}
+.segmented button:hover { color: var(--text); }
+.segmented button[aria-checked="true"] { background: var(--accent); color: white; }
+.preset-desc { margin: 0; color: var(--muted); font-size: 13px; }
+#adv-toggle { align-self: flex-start; }
+.advanced { display: flex; flex-direction: column; gap: 14px; padding-top: 6px; }
+.advanced[hidden] { display: none; }
+.slider { display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
+.slider span { display: flex; justify-content: space-between; }
+.slider b { color: var(--text); font-weight: 600; }
+.slider small { color: var(--faint); font-size: 12px; }
+input[type="range"] { width: 100%; accent-color: var(--accent); }
+.row { display: flex; justify-content: space-between; align-items: center; font-size: 14px; }
+.toggles { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; }
+.toggle { display: flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer; }
+.toggle input { width: 16px; height: 16px; accent-color: var(--accent); }
+#restart-btn { margin-top: 10px; }
+#note-message { white-space: pre-line; }

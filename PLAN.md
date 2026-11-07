@@ -24,16 +24,16 @@ This page shows what is done and what comes next. It is updated after every stag
 |---|-------|---------------------------|--------|
 | 0 | Confirm your setup | Windows 11 24H2 · Samsung Galaxy S23 (Android 14) · Motorola g57 power (Android 17) · iPhones for Phase 2 | ✅ |
 | 1 | Basic mirror | Plug in phone → app shows its name → click a button → phone screen appears in a window | ✅ Tested on Motorola g57 power: all 7 steps worked, sound works |
-| 2 | Proper interface + clear statuses | New main screen. Statuses: Connected / USB Debugging off / Waiting for permission on phone / Driver missing / Another app is blocking. Names the blocking app (DouWan, ApowerMirror, Vysor, BlueStacks…) with a "Close it for me" button. "Show details" on every problem. Brand-specific "How to turn on USB Debugging" guide | 🧪 |
-| 3 | Presets — smoothness first | "Gaming" (max FPS, high quality, lowest delay, landscape, screen stays awake) and "Normal" (balanced). *Moved up because smoothness was only "OK" on the Motorola.* | ⏳ |
-| 4 | Advanced panel | Sliders for resolution, quality (bitrate), and max FPS | ⏳ |
+| 2 | Proper interface + clear statuses | New main screen. Statuses: Connected / USB Debugging off / Waiting for permission on phone / Driver missing / Another app is blocking. Names the blocking app (DouWan, ApowerMirror, Vysor, BlueStacks…) with a "Close it for me" button. "Show details" on every problem. Brand-specific "How to turn on USB Debugging" guide | ✅ Tested on both phones (v0.2.0) |
+| 3 | Presets — smoothness first | "Gaming" (120 FPS max, 16 Mbps, 1920 px, phone turned to landscape, fullscreen + borderless, low-delay encoder) and "Normal" (60 FPS, 8 Mbps, windowed). Live FPS shown while mirroring | 🧪 |
+| 4 | Advanced panel | Sliders for resolution, quality (bitrate), max FPS; rotation; switches for fullscreen, borderless, always-on-top, phone sound, low-delay mode, phone screen off. Built together with Stage 3 | 🧪 |
 | 5 | First-time setup walk-through | Opens on first launch; guides step by step through USB Debugging with progress, building on the Stage 2 guide | ⏳ |
-| 6 | Window controls | Fullscreen, borderless, always-on-top, portrait/landscape rotation | ⏳ |
-| 7 | Phone audio switch | Sound already works; add an on/off switch | ⏳ |
+| 6 | Window controls | Fullscreen, borderless, always-on-top and rotation are now in Advanced settings (Stage 3). Still to do: change them *while* mirroring without restarting | 🔨 partly done |
+| 7 | Phone audio switch | "Phone sound" switch added in Advanced settings (Stage 3) | 🧪 |
 | 8 | Keyboard & mouse control switch | Control already works; add an on/off switch | ⏳ |
 | 9 | Game key mapping | Place keys (W, A, S, D, Space…) on spots of the phone screen to play games with the keyboard; save layouts per game | ⏳ |
 | 10 | Record & screenshot | Record the mirror with sound to an MP4 video; one-click screenshot | ⏳ |
-| 11 | Remember settings | The app remembers your choices next time you open it | ⏳ |
+| 11 | Remember settings | Preset and Advanced settings are remembered (Stage 3). Window size/position etc. later | 🔨 partly done |
 | 12 | Package as one file | Signed portable `.exe` + installer; tested on a clean PC | ⏳ |
 
 **Always-on rules (every stage):**
@@ -77,3 +77,5 @@ Phone audio needs Android 11+, so every target phone supports it.
 - **2026-11-07** — Stage 1 confirmed working on Motorola g57 power. Cause of the earlier error: DouWan running in the background, holding the phone.
 - **2026-11-07** — Stage 2 built (v0.2.0): new main screen, detection of "USB Debugging off" / missing driver / blocking apps (with "Close it for me"), brand-specific USB Debugging guide. Phone Link is deliberately *not* flagged: it connects over Wi-Fi and can't hold the cable connection.
 - **2026-11-07** — v0.2.0 passed all three Windows tests (no phone, blocked port 5037, fake DouWan) and is published. Waiting for your Stage 2 test.
+- **2026-11-07** — Stage 2 confirmed on both phones.
+- **2026-11-07** — Stage 3 built (v0.3.0): Gaming / Normal / Custom presets, Advanced settings, live FPS counter, settings remembered. Waiting for your smoothness numbers.

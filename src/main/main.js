@@ -6,10 +6,13 @@ const { DeviceWatcher } = require('./android/devices');
 const { Mirror } = require('./android/mirror');
 const { adb } = require('./android/adb');
 const platform = require('./platform');
+const settingsStore = require('./settings');
+const presets = require('./android/presets');
 
 let win;
 const watcher = new DeviceWatcher();
 const mirror = new Mirror();
+let settings; // loaded once the app is ready
 
 function send(channel, payload) {
   if (win && !win.isDestroyed()) win.webContents.send(channel, payload);
@@ -18,7 +21,7 @@ function send(channel, payload) {
 function createWindow() {
   win = new BrowserWindow({
     width: 560,
-    height: 700,
+    height: 800,
     minWidth: 460,
     minHeight: 600,
     title: 'MirroX',
@@ -34,16 +37,43 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  settings = settingsStore.load();
   createWindow();
   watcher.on('change', (state) => send('phone-state', state));
   mirror.on('state', (s) => send('mirror-state', s));
+  mirror.on('stats', (s) => send('mirror-stats', s));
   watcher.start();
 
-  ipcMain.handle('get-state', () => ({ phone: watcher.current, version: app.getVersion() }));
+  ipcMain.handle('get-state', () => ({
+    phone: watcher.current,
+    version: app.getVersion(),
+    settings,
+    presets: presets.PRESETS,
+    choices: {
+      resolutions: presets.RESOLUTIONS,
+      fps: presets.FPS_CHOICES,
+      bitrateMin: presets.BITRATE_MIN,
+      bitrateMax: presets.BITRATE_MAX,
+    },
+  }));
 
-  ipcMain.handle('start-mirror', () => {
+  // Saves the preset choice / custom values; returns what is now saved.
+  ipcMain.handle('set-settings', (_e, next) => {
+    const preset = next.preset === 'custom' || presets.PRESETS[next.preset] ? next.preset : settings.preset;
+    settings = { preset, custom: presets.sanitize({ ...settings.custom, ...(next.custom || {}) }) };
+    settingsStore.save(settings);
+    return settings;
+  });
+
+  const startMirror = () => {
     const s = watcher.current;
-    if (s && s.ready) mirror.start({ serial: s.serial, name: s.name });
+    if (s && s.ready) mirror.start({ serial: s.serial, name: s.name }, presets.effectiveSettings(settings));
+  };
+  ipcMain.handle('start-mirror', startMirror);
+  ipcMain.handle('restart-mirror', () => {
+    if (!mirror.running) return startMirror();
+    mirror.once('state', (st) => st.state !== 'starting' && setTimeout(startMirror, 500));
+    mirror.stop();
   });
   ipcMain.handle('stop-mirror', () => mirror.stop());
 
