@@ -3,8 +3,7 @@
 const path = require('path');
 const { app, BrowserWindow, ipcMain, clipboard, shell } = require('electron');
 const { DeviceWatcher } = require('./android/devices');
-const { Mirror } = require('./android/mirror'); // default engine: scrcpy's own window (+ MirroX bar on top)
-const { ClassicBar } = require('./classic-bar');
+const { Mirror } = require('./android/mirror'); // default engine: scrcpy's own window
 const { adb } = require('./android/adb');
 const platform = require('./platform');
 const settingsStore = require('./settings');
@@ -15,7 +14,19 @@ let win;
 let settings; // loaded once the app is ready
 const watcher = new DeviceWatcher();
 const classic = new Mirror();
-const bar = new ClassicBar(); // the bar with the Fullscreen button above scrcpy's window
+let escExit = null; // Windows: Esc leaves fullscreen in scrcpy's window
+
+// scrcpy's window has no "Esc exits fullscreen" of its own: add it while mirroring (Windows).
+function startEscExit(pid) {
+  stopEscExit();
+  if (process.platform !== 'win32' || !pid) return;
+  const { EscExit } = require('./platform/win-keys');
+  escExit = new EscExit(pid);
+}
+function stopEscExit() {
+  if (escExit) escExit.stop();
+  escExit = null;
+}
 let controller; // created once the app is ready (needs the screen module)
 let active = null; // the engine currently mirroring: controller or classic
 
@@ -92,13 +103,10 @@ app.whenReady().then(() => {
   }
   controller.on('window', (w) => send('window-state', w));
 
-  // Bar on top of scrcpy's window: attach once the mirror window is up, remove when it ends.
   classic.on('state', (s) => {
-    if (s.state === 'running' && classic.proc) bar.attach(classic.proc.pid, classic.deviceName || 'Phone');
-    if (s.state === 'stopped' || s.state === 'error') bar.detach();
+    if (s.state === 'running' && classic.proc && !escExit) startEscExit(classic.proc.pid);
+    if (s.state === 'stopped' || s.state === 'error') stopEscExit();
   });
-  classic.on('stats', (s) => bar.setStats(s));
-  bar.on('action', (a) => a === 'stop' && stopMirror());
   watcher.start();
 
   ipcMain.handle('get-state', () => ({
@@ -136,7 +144,7 @@ app.whenReady().then(() => {
     if (classic.running) {
       const fsChanged = (before.mode === 'fullscreen') !== (after.mode === 'fullscreen');
       const otherChanged = (before.mode === 'borderless') !== (after.mode === 'borderless') || before.alwaysOnTop !== after.alwaysOnTop;
-      if (fsChanged) bar.toggleFullscreen();
+      if (fsChanged && process.platform === 'win32' && classic.proc) require('./platform/win-keys').pressKeys(classic.proc.pid, 'alt+f');
       if (otherChanged) return { ...after, restart: true };
     }
     return after;
@@ -144,7 +152,6 @@ app.whenReady().then(() => {
 
   ipcMain.handle('start-mirror', startMirror);
   ipcMain.handle('restart-mirror', () => {
-    bar.detach();
     const engine = active;
     if (!engine || !engine.running) return startMirror();
     engine.once('state', (st) => st.state !== 'starting' && setTimeout(startMirror, 500));
@@ -167,8 +174,8 @@ app.whenReady().then(() => {
     return result;
   });
 
-  // Automated tests: attach the bar to a stand-in window (scripts/smoke-test.js --bar).
-  if (process.env.MIRROX_TEST_BAR_PID) bar.attach(Number(process.env.MIRROX_TEST_BAR_PID), 'Test phone');
+  // Automated tests: Esc-exits-fullscreen on a stand-in window (scripts/smoke-test.js --esc).
+  if (process.env.MIRROX_TEST_ESC_PID) startEscExit(Number(process.env.MIRROX_TEST_ESC_PID));
 
   // Automated tests: open the mirror window against a fake phone server.
   if (process.env.MIRROX_TEST_MIRROR_PORT) win.webContents.once('did-finish-load', () => setTimeout(startMirror, 500));
@@ -178,6 +185,7 @@ app.on('window-all-closed', () => app.quit());
 
 app.on('before-quit', () => {
   watcher.stop();
+  stopEscExit();
   stopMirror();
   // Stop the background ADB helper so it doesn't keep running after MirroX closes.
   adb(['kill-server'], { timeout: 3000 }).catch(() => {});

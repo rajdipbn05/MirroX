@@ -7,9 +7,9 @@
 //                        -> MirroX must still work ("No phone found")
 //   --fake-conflict      a program named DouWan.exe is running and MirroX's own helper port
 //                        is jammed -> MirroX must name DouWan as the blocker and offer to close it
-//   --bar                (Windows) a stand-in for scrcpy's window that goes fullscreen on Alt+F:
-//                        the MirroX bar must sit on top of it, its Fullscreen button must work,
-//                        the bar must hide in fullscreen and the Exit button must bring it back
+//   --esc                (Windows) a stand-in for scrcpy's window that goes fullscreen on Alt+F:
+//                        Esc must bring it back from fullscreen (and not reach the phone);
+//                        outside fullscreen Esc must pass through
 //   --fake-phone         a pretend phone (scripts/fake-phone-server.js) streams video + sound:
 //                        the mirror window must show frames, send clicks/keys to the "phone",
 //                        and switch window modes with its buttons and Alt+F
@@ -158,6 +158,7 @@ async function fakePhoneTest() {
   await main.waitForTimeout(1500);
   check('Esc leaves fullscreen', (await mode()) === 'mode-normal' && !((await frameKind()) || {}).fullscreen);
   check('picture continues after fullscreen', await pictureFlows());
+  check('never asks the phone to restart its video', !messages.some((m) => m.msg === 'reset-video'));
   check('only one mirror window open', app.windows().filter((w) => !w.isClosed() && w.url().includes('mirror.html')).length === 1);
 
   // 5. The window reshapes when the "phone" rotates (the clip switches every 2 s).
@@ -198,86 +199,83 @@ async function fakePhoneTest() {
   process.exit(0);
 }
 
-// ---------- --bar scenario ----------
-const FAKE_SCRCPY_WINDOW = `
+// ---------- --esc scenario ----------
+// A stand-in for scrcpy's window: Alt+F toggles fullscreen (like scrcpy); it writes what happens to a file.
+function fakeScrcpyWindow(logFile) {
+  return `
 Add-Type -AssemblyName System.Windows.Forms
+$log = '${logFile.replace(/'/g, "''")}'
 $f = New-Object Windows.Forms.Form
 $f.Text = 'Fake scrcpy window'
 $f.StartPosition = 'Manual'; $f.Left = 300; $f.Top = 250; $f.Width = 420; $f.Height = 640
-$f.BackColor = 'Black'
 $f.KeyPreview = $true
 $f.Add_KeyDown({ param($s, $e)
   if ($e.Alt -and $e.KeyCode -eq 'F') {
-    if ($s.FormBorderStyle -eq 'None') { $s.WindowState = 'Normal'; $s.FormBorderStyle = 'Sizable' }
-    else { $s.FormBorderStyle = 'None'; $s.WindowState = 'Maximized' }
+    if ($s.FormBorderStyle -eq 'None') { $s.WindowState = 'Normal'; $s.FormBorderStyle = 'Sizable'; Add-Content $log 'STATE normal' }
+    else { $s.FormBorderStyle = 'None'; $s.WindowState = 'Maximized'; Add-Content $log 'STATE fullscreen' }
     $e.Handled = $true; $e.SuppressKeyPress = $true
-  }
+  } elseif ($e.KeyCode -eq 'Escape') { Add-Content $log 'KEY escape' }
 })
 [Windows.Forms.Application]::Run($f)
 `;
+}
 
-async function barTest() {
-  const fake = spawn('powershell.exe', ['-NoProfile', '-EncodedCommand', Buffer.from(FAKE_SCRCPY_WINDOW, 'utf16le').toString('base64')], { stdio: 'ignore' });
+function ps(script) {
+  return new Promise((resolve) => {
+    const p = spawn('powershell.exe', ['-NoProfile', '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64')], { stdio: 'ignore' });
+    p.on('exit', resolve);
+  });
+}
+
+const PRESS_ESC = `
+Add-Type -TypeDefinition @"
+using System; using System.Runtime.InteropServices;
+public static class K { [DllImport("user32.dll")] public static extern void keybd_event(byte vk, byte scan, uint flags, UIntPtr extra); }
+"@
+[K]::keybd_event(0x1B, 0, 0, [UIntPtr]::Zero); Start-Sleep -Milliseconds 40; [K]::keybd_event(0x1B, 0, 2, [UIntPtr]::Zero)
+`;
+
+async function escTest() {
+  const logFile = path.join(os.tmpdir(), `mirrox-esc-${Date.now()}.txt`);
+  fs.writeFileSync(logFile, '');
+  const fake = spawn('powershell.exe', ['-NoProfile', '-EncodedCommand', Buffer.from(fakeScrcpyWindow(logFile), 'utf16le').toString('base64')], { stdio: 'ignore' });
   cleanups.push(() => fake.kill());
   await new Promise((r) => setTimeout(r, 4000));
-  const app = await _electron.launch({ executablePath: exe, args: appArgs, timeout: 60000, env: { ...process.env, MIRROX_TEST_BAR_PID: String(fake.pid) } });
+  const app = await _electron.launch({ executablePath: exe, args: appArgs, timeout: 60000, env: { ...process.env, MIRROX_TEST_ESC_PID: String(fake.pid) } });
   cleanups.push(() => app.process().kill());
   const main = await app.firstWindow();
+  await main.waitForTimeout(9000); // the Esc helper compiles its Win32 part on start
+  const log = () => fs.readFileSync(logFile, 'utf8').split(/\r?\n/).filter(Boolean);
   const results = {};
   const check = (name, ok, info = '') => (results[name] = ok ? 'ok' : `FAILED ${info}`);
-  const barState = () => app.evaluate(({ BrowserWindow }) => {
-    const w = BrowserWindow.getAllWindows().find((x) => /bar\.html\?pill=0/.test(x.webContents.getURL()));
-    return w ? { visible: w.isVisible(), bounds: w.getBounds() } : null;
-  });
-  const waitFor = async (fn, ms = 10000) => {
-    const until = Date.now() + ms;
-    let v;
-    while (Date.now() < until) {
-      v = await fn();
-      if (v && v.ok) return v;
-      await main.waitForTimeout(250);
-    }
-    return v || {};
-  };
+  const { pressKeys } = require(path.join(__dirname, '..', 'src', 'main', 'platform', 'win-keys.js'));
 
-  // 1. Bar appears on top of the window (form at x=300, y=250; allow for frame/border differences).
-  const placed = await waitFor(async () => {
-    const b = await barState();
-    return { ok: !!b && b.visible && Math.abs(b.bounds.x - 300) <= 16 && Math.abs(b.bounds.y + b.bounds.height - 250) <= 16, b };
-  });
-  check('bar sits on top of the mirror window', placed.ok, JSON.stringify(placed.b));
-  const barPage = app.windows().find((w) => /bar\.html\?pill=0/.test(w.url()));
-  if (barPage) await barPage.screenshot({ path: 'smoke-bar.png' }).catch(() => {});
-  check('bar shows the phone name', barPage && (await barPage.textContent('#name')) === 'Test phone');
+  // 1. Go fullscreen with Alt+F (as the user would), then press Esc: back to normal, Esc swallowed.
+  await pressKeys(fake.pid, 'alt+f');
+  await main.waitForTimeout(1500);
+  check('Alt+F makes the window fullscreen', log().slice(-1)[0] === 'STATE fullscreen', JSON.stringify(log()));
+  await ps(PRESS_ESC);
+  await main.waitForTimeout(2000);
+  const after = log();
+  check('Esc leaves fullscreen', after.slice(-1)[0] === 'STATE normal', JSON.stringify(after));
+  check('that Esc is not passed on to the phone', !after.includes('KEY escape'), JSON.stringify(after));
 
-  // 2. Fullscreen button -> Alt+F to the window -> it goes fullscreen -> bar hides.
-  if (barPage) await barPage.click('#fullscreen');
-  const hidden = await waitFor(async () => {
-    const b = await barState();
-    return { ok: !!b && !b.visible, b };
-  });
-  check('Fullscreen button works and bar hides in fullscreen', hidden.ok, JSON.stringify(hidden.b));
+  // 2. Outside fullscreen Esc is left alone (it goes to the phone as usual).
+  await ps(PRESS_ESC);
+  await main.waitForTimeout(1500);
+  check('Esc outside fullscreen goes to the phone', log().slice(-1)[0] === 'KEY escape', JSON.stringify(log()));
 
-  // 3. "Exit fullscreen" (the top-edge button) -> back to a normal window -> bar returns.
-  const pillPage = app.windows().find((w) => /bar\.html\?pill=1/.test(w.url()));
-  if (pillPage) await pillPage.evaluate(() => document.getElementById('exit').click());
-  const back = await waitFor(async () => {
-    const b = await barState();
-    return { ok: !!b && b.visible && Math.abs(b.bounds.y + b.bounds.height - 250) <= 16, b };
-  });
-  check('Exit fullscreen brings the bar back', back.ok, JSON.stringify(back.b));
-
-  const report = 'scenario: --bar\n' + Object.entries(results).map(([k, v]) => `${k}: ${v}`).join('\n');
+  const report = 'scenario: --esc\n' + Object.entries(results).map(([k, v]) => `${k}: ${v}`).join('\n');
   out(report);
   if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, '```\n' + report + '\n```\n');
   await Promise.race([app.close().catch(() => {}), new Promise((r) => setTimeout(r, 8000))]);
-  if (Object.values(results).some((v) => v !== 'ok')) fail('Bar test failed', report);
+  if (Object.values(results).some((v) => v !== 'ok')) fail('Esc test failed', report);
   for (const c of cleanups) {
     try {
       c();
     } catch {}
   }
-  out('Smoke test passed (--bar).');
+  out('Smoke test passed (--esc).');
   process.exit(0);
 }
 
@@ -289,7 +287,7 @@ const EXPECT = {
 
 (async () => {
   if (scenario === '--fake-phone') return fakePhoneTest();
-  if (scenario === '--bar') return barTest();
+  if (scenario === '--esc') return escTest();
   if (!EXPECT[scenario]) fail('Bad scenario', scenario);
   let douwan;
   if (scenario === '--block-default-port') await jamPort(5037);

@@ -153,7 +153,7 @@ window.mirrox.onPhoneState((s) => {
   render();
 });
 
-const RUNNING_NOTE = 'Your phone screen is showing in its own window. Close that window or press Stop to end. Alt+F switches between a normal window and fullscreen/borderless.';
+const RUNNING_NOTE = 'Your phone screen is showing in its own window. Close that window or press Stop to end. Alt+F switches fullscreen on and off; Esc also leaves fullscreen.';
 
 function liveNote() {
   const parts = [];

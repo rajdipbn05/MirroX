@@ -62,7 +62,6 @@ function session(w, h) {
 }
 
 let videoSock = null;
-let restartClip = null; // set while streaming; called on RESET_VIDEO
 
 function serveVideo(sock) {
   sock.write(Buffer.from([0])); // dummy byte, right away
@@ -89,7 +88,6 @@ function startVideo(sock) {
     frame = 0;
   };
   startClip();
-  restartClip = startClip; // RESET_VIDEO: send config + key frame again
   timer = setInterval(() => {
     if (sock.destroyed) return clearInterval(timer);
     const c = clips[clipIndex];
@@ -145,8 +143,11 @@ function serveControl(sock) {
       buf = buf.subarray(size);
       const out = { type };
       if (type === 17) {
+        // Like the Motorola g57 power on Android 17: "Video capture reset", then the connection drops.
         out.msg = 'reset-video';
-        if (restartClip) restartClip();
+        console.log(JSON.stringify(out));
+        for (const so of [videoSock, audioSock, sock]) if (so) so.destroy();
+        return;
       }
       if (type === 0) Object.assign(out, { msg: 'key', action: m[1], keycode: m.readUInt32BE(2), meta: m.readUInt32BE(10) });
       if (type === 2) Object.assign(out, { msg: 'touch', action: m[1], x: m.readInt32BE(10), y: m.readInt32BE(14), w: m.readUInt16BE(18), h: m.readUInt16BE(20) });

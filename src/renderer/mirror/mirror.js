@@ -23,6 +23,7 @@ let decoderConfig = null; // the SPS/PPS the decoder was set up with
 let pendingConfig = null;
 let waitingKeyFrame = true;
 let decoderErrors = 0;
+let lastKeyFrameRequest = 0;
 const recvTimes = new Map(); // timestamp -> time received (for the "decoding … ms" number)
 let framesThisSecond = 0;
 let decodeMsSum = 0;
@@ -41,7 +42,11 @@ function makeDecoder(codec, config) {
       window.__decoderErrors = decoderErrors; // read by automated tests
       waitingKeyFrame = true;
       decoderConfig = null; // re-create on the next config
-      sendControl(P.simple(P.MSG.RESET_VIDEO)); // ask the phone for a fresh key frame
+      // Replay from the last key frame (at most every 2 s, so a bad stream can't loop).
+      if (Date.now() - lastKeyFrameRequest > 2000) {
+        lastKeyFrameRequest = Date.now();
+        ipcRenderer.send('mirror:need-key-frame');
+      }
     },
   });
   const conf = { codec, optimizeForLatency: true, hardwareAcceleration: 'no-preference' };

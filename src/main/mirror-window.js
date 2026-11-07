@@ -43,6 +43,7 @@ class MirrorController extends EventEmitter {
     ipcMain.on('mirror:control', (e, buf) => mine(e) && this.client && this.client.sendControl(Buffer.from(buf)));
     ipcMain.on('mirror:action', (e, a) => mine(e) && this.onAction(a));
     ipcMain.on('mirror:first-frame', (e) => mine(e) && this.emit('state', { state: 'running' }));
+    ipcMain.on('mirror:need-key-frame', (e) => mine(e) && this.replay());
   }
 
   get running() {
@@ -95,7 +96,6 @@ class MirrorController extends EventEmitter {
       await this.client.connect(port, { audio });
       if (this.cancelled) throw Object.assign(new Error('cancelled'), { cancelled: true });
       if (perf.screenOff) this.client.sendControl(P.setDisplayPower(false));
-      this.client.sendControl(P.simple(P.MSG.RESET_VIDEO)); // make sure the window gets a key frame
     } catch (err) {
       this.starting = false;
       if (!err.cancelled) {
@@ -113,11 +113,16 @@ class MirrorController extends EventEmitter {
 
   wireClient(c) {
     c.on('session', (s) => this.onVideoSize(s));
-    c.on('video', (h, data) => this.sendToWindow('video', { config: h.config, key: h.keyFrame, pts: h.pts, data }));
+    c.on('video', (h, data) => {
+      const pkt = { config: h.config, key: h.keyFrame, pts: h.pts, data };
+      this.keepForReplay(pkt);
+      this.sendToWindow('video', pkt);
+    });
     c.on('audio-start', () => this.sendToWindow('audio-start'));
     c.on('audio', (data) => this.sendToWindow('audio', data));
-    c.on('ended', (err) => {
+    c.on('ended', async (err) => {
       if (this.cancelled) return;
+      await new Promise((r) => setTimeout(r, 800)); // let the phone's last log lines arrive
       this.endInfo = {
         state: 'error',
         message: err && err.encoder
@@ -241,11 +246,32 @@ class MirrorController extends EventEmitter {
     this.ready = true;
     this.win.webContents.send('init', { title: this.title, framed: this.framed, ...this.modeInfo() });
     if (this.client && this.client.session) this.sendToWindow('session', this.client.session);
-    if (this.client) this.client.sendControl(P.simple(P.MSG.RESET_VIDEO)); // new window needs a key frame
+    this.replay(); // a new window needs the picture from the last key frame on
     if (this.pendingFullscreen) {
       this.pendingFullscreen = false;
       this.setMode('fullscreen');
     }
+  }
+
+  // Keep the video since the last key frame, so a new window can start decoding right away.
+  // (Asking the phone to restart its video instead made some phones drop the connection.)
+  keepForReplay(pkt) {
+    if (pkt.config) {
+      this.replayConfig = pkt;
+      this.replayFrames = [];
+    } else if (pkt.key) {
+      this.replayFrames = [pkt];
+    } else if (this.replayFrames && this.replayFrames.length < 900) {
+      this.replayFrames.push(pkt);
+    } else {
+      this.replayFrames = null; // too long since the last key frame: wait for the next one
+    }
+  }
+
+  replay() {
+    if (!this.replayConfig || !this.replayFrames || !this.replayFrames.length) return;
+    this.sendToWindow('video', this.replayConfig);
+    for (const pkt of this.replayFrames) this.sendToWindow('video', pkt);
   }
 
   sendToWindow(channel, payload) {
