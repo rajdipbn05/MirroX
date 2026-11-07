@@ -25,13 +25,20 @@ const fail = (title, msg) => {
   out(`::error title=${title}::${String(msg).replace(/%/g, '%25').replace(/\r?\n/g, '%0A')}`);
   process.exit(1);
 };
+process.on('uncaughtException', (err) => fail('Smoke test crashed (uncaught)', err.stack || err));
 setTimeout(() => fail('Smoke test timed out', 'Did not finish within 3 minutes.'), 180000).unref();
 
 // A TCP server that accepts connections and never replies (like a stuck helper).
 function jamPort(port) {
   const held = [];
   return new Promise((resolve, reject) =>
-    net.createServer((s) => held.push(s)).on('error', reject).listen(port, '127.0.0.1', resolve)
+    net
+      .createServer((s) => {
+        s.on('error', () => {}); // the app may reset the connection when it gives up — that's expected
+        held.push(s);
+      })
+      .on('error', reject)
+      .listen(port, '127.0.0.1', resolve)
   );
 }
 
@@ -41,7 +48,9 @@ function fakeDouWan() {
   const fake = path.join(dir, process.platform === 'win32' ? 'DouWan.exe' : 'DouWan');
   fs.copyFileSync(process.execPath, fake);
   fs.chmodSync(fake, 0o755);
-  return spawn(fake, ['-e', 'setTimeout(() => {}, 600000)'], { stdio: 'ignore' });
+  const child = spawn(fake, ['-e', 'setTimeout(() => {}, 600000)'], { stdio: 'ignore' });
+  child.on('error', (err) => fail('Could not start fake DouWan', err.stack || err));
+  return child;
 }
 
 const EXPECT = {
@@ -86,7 +95,11 @@ const EXPECT = {
   if (process.env.GITHUB_STEP_SUMMARY)
     fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, '```\n' + report + '\n```\n');
 
-  await app.close().catch(() => {});
+  // Close the app, but don't let a slow shutdown hang the test.
+  await Promise.race([app.close().catch(() => {}), new Promise((r) => setTimeout(r, 10000))]);
+  try {
+    app.process().kill();
+  } catch {}
   if (douwan) douwan.kill();
   if (!EXPECT[scenario](r)) fail(`Unexpected screen (${scenario})`, report);
   out(`Smoke test passed (${scenario}).`);
