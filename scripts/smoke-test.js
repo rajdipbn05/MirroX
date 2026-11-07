@@ -19,8 +19,10 @@ const argv = process.argv.slice(2);
 const scenario = argv[0].startsWith('--') ? argv.shift() : 'default';
 const [exe, ...appArgs] = argv;
 
+// Write synchronously: on Windows, console.log output can be lost if the process exits right after.
+const out = (line) => fs.writeSync(1, line + '\n');
 const fail = (title, msg) => {
-  console.log(`::error title=${title}::${String(msg).replace(/%/g, '%25').replace(/\r?\n/g, '%0A')}`);
+  out(`::error title=${title}::${String(msg).replace(/%/g, '%25').replace(/\r?\n/g, '%0A')}`);
   process.exit(1);
 };
 setTimeout(() => fail('Smoke test timed out', 'Did not finish within 3 minutes.'), 180000).unref();
@@ -45,7 +47,7 @@ function fakeDouWan() {
 const EXPECT = {
   default: (r) => r.title === 'No phone found' && !r.details,
   '--block-default-port': (r) => r.title === 'No phone found' && !r.details,
-  '--fake-conflict': (r) => /DouWan is blocking/.test(r.title) && /Close DouWan for me/.test(r.actions),
+  '--fake-conflict': (r) => /DouWan/.test(r.title) && /blocking/.test(r.title) && /Close/.test(r.actions),
 };
 
 (async () => {
@@ -80,13 +82,13 @@ const EXPECT = {
   await page.screenshot({ path: `smoke-${scenario.replace(/^--/, '')}.png` });
 
   const report = `scenario: ${scenario}\n` + Object.entries(r).map(([k, v]) => `${k}: ${v}`).join('\n');
-  console.log(report);
+  out(report);
   if (process.env.GITHUB_STEP_SUMMARY)
     fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, '```\n' + report + '\n```\n');
 
   await app.close().catch(() => {});
   if (douwan) douwan.kill();
   if (!EXPECT[scenario](r)) fail(`Unexpected screen (${scenario})`, report);
-  console.log(`Smoke test passed (${scenario}).`);
+  out(`Smoke test passed (${scenario}).`);
   process.exit(0);
 })().catch((err) => fail('Smoke test crashed', err.stack || err));

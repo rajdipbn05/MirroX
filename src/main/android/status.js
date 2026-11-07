@@ -101,9 +101,9 @@ function classify({ devices = [], adbError = null, adbErrorDetails = null, usb =
     : 'Programs that may hold the phone: none found';
   const blocked = () => ({
     status: 'blocked',
-    title: `${listNames(conflictNames)} is blocking the connection`,
+    title: `${listNames(conflictNames)} ${conflicts.length === 1 ? 'is' : 'are'} blocking the connection`,
     subtitle: 'Another app is using your phone',
-    message: `${listNames(conflictNames)} is running and holding the connection to your phone, so MirroX can't reach it. Close ${
+    message: `${listNames(conflictNames)} ${conflicts.length === 1 ? 'is' : 'are'} running and holding the connection to your phone, so MirroX can't reach it. Close ${
       conflicts.length === 1 ? 'it' : 'them'
     } (also check the icons near the clock, bottom-right of the screen) — MirroX will connect automatically.`,
     actions: closeAction,
