@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; script-src 'self'" />
+    <title>MirroX</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <header>
+      <h1>MirroX</h1>
+      <p class="tagline">Your phone screen, on your computer.</p>
+    </header>
+
+    <main>
+      <section class="card" id="device-card">
+        <div class="status-dot" id="status-dot"></div>
+        <div class="device-text">
+          <div class="device-name" id="device-name">Looking for your phone…</div>
+          <div class="device-status" id="device-status">Plug your phone into this computer with a USB cable.</div>
+        </div>
+      </section>
+
+      <p class="hint" id="hint" hidden></p>
+
+      <button id="mirror-btn" class="primary" disabled>Start Mirroring</button>
+
+      <p class="message" id="message" hidden></p>
+    </main>
+
+    <footer>Stage 1 preview · v0.1</footer>
+    <script src="renderer.js"></script>
+  </body>
+</html>

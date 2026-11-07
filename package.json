@@ -1,0 +1,42 @@
+{
+  "name": "mirrox",
+  "productName": "MirroX",
+  "version": "0.1.0",
+  "description": "Mirror your phone screen on your computer over USB — no phone app needed.",
+  "main": "src/main/main.js",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "fetch-engines": "node scripts/fetch-engines.js",
+    "test": "node --test test/*.test.js",
+    "dist:win": "node scripts/fetch-engines.js win && electron-builder --win portable --x64"
+  },
+  "build": {
+    "appId": "com.mirrox.app",
+    "productName": "MirroX",
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "vendor/${os}",
+        "to": "engines"
+      }
+    ],
+    "win": {
+      "signAndEditExecutable": false
+    },
+    "portable": {
+      "artifactName": "MirroX-${version}-portable.exe"
+    },
+    "directories": {
+      "output": "dist"
+    }
+  },
+  "devDependencies": {
+    "electron": "^45.2.3",
+    "electron-builder": "^26.18.0",
+    "extract-zip": "^2.0.1"
+  }
+}
