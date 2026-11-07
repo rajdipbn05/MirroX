@@ -1,5 +1,5 @@
-# Builds the Windows app on every update to main and publishes it as a
-# downloadable file on the GitHub "Releases" page.
+# Builds the Windows app, tests it on a real Windows machine, and publishes it
+# as a downloadable file on the GitHub "Releases" page.
 name: Build Windows app
 
 on:
@@ -14,30 +14,68 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-
       - run: npm ci
       - run: npm test
       - run: npm run dist:win
-
       - name: Read version
         id: version
         run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-build
+          path: |
+            dist/win-unpacked/
+            dist/MirroX-*-portable.exe
 
+  smoke-test-windows:
+    needs: build
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-build
+          path: dist
+      - name: Check bundled engine files
+        shell: pwsh
+        run: Get-ChildItem dist/win-unpacked/resources/engines/scrcpy | Format-Table Name, Length
+      - name: Run app on Windows (no phone attached)
+        run: node scripts/smoke-test.js dist/win-unpacked/MirroX.exe
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: smoke-screenshot
+          path: smoke-screenshot.png
+
+  release:
+    needs: [build, smoke-test-windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-build
+          path: dist
       - name: Publish download
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ steps.version.outputs.version }}
-          name: MirroX ${{ steps.version.outputs.version }}
+          tag_name: v${{ needs.build.outputs.version }}
+          name: MirroX ${{ needs.build.outputs.version }}
           target_commitish: ${{ github.sha }}
           make_latest: true
           files: dist/MirroX-*-portable.exe
           body: |
-            **How to install:** download `MirroX-${{ steps.version.outputs.version }}-portable.exe` below and double-click it. No installation needed.
+            **How to install:** download `MirroX-${{ needs.build.outputs.version }}-portable.exe` below and double-click it. No installation needed.
             If Windows shows "Windows protected your PC", click **More info** → **Run anyway**.

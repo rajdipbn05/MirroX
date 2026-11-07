@@ -21,14 +21,28 @@
         </div>
       </section>
 
-      <p class="hint" id="hint" hidden></p>
+      <div class="hint" id="hint-box" hidden>
+        <p id="hint"></p>
+        <div class="details-actions" id="details-actions" hidden>
+          <button class="link" id="details-toggle">Show details</button>
+          <button class="link" id="details-copy" hidden>Copy details</button>
+        </div>
+        <pre class="details" id="details" hidden></pre>
+      </div>
 
       <button id="mirror-btn" class="primary" disabled>Start Mirroring</button>
 
-      <p class="message" id="message" hidden></p>
+      <div id="message-box" hidden>
+        <p class="message" id="message"></p>
+        <div class="details-actions" id="mdetails-actions" hidden>
+          <button class="link" id="mdetails-toggle">Show details</button>
+          <button class="link" id="mdetails-copy" hidden>Copy details</button>
+        </div>
+        <pre class="details" id="mdetails" hidden></pre>
+      </div>
     </main>
 
-    <footer>Stage 1 preview · v0.1</footer>
+    <footer>Stage 1 preview · v0.1.1</footer>
     <script src="renderer.js"></script>
   </body>
 </html>

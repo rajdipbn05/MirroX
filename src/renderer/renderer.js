@@ -4,7 +4,35 @@ const $ = (id) => document.getElementById(id);
 let current = null; // the phone being shown
 let mirrorState = 'stopped';
 
-function showDevices({ devices, error }) {
+// A text box with an optional "Show details" / "Copy details" pair for technical info.
+function detailsBox(prefix) {
+  const toggle = $(prefix + 'details-toggle');
+  const copy = $(prefix + 'details-copy');
+  const pre = $(prefix + 'details');
+  toggle.addEventListener('click', () => {
+    pre.hidden = !pre.hidden;
+    copy.hidden = pre.hidden;
+    toggle.textContent = pre.hidden ? 'Show details' : 'Hide details';
+  });
+  copy.addEventListener('click', async () => {
+    await window.mirrox.copyText(pre.textContent);
+    copy.textContent = 'Copied ✓';
+    setTimeout(() => (copy.textContent = 'Copy details'), 1500);
+  });
+  return (details) => {
+    $(prefix + 'details-actions').hidden = !details;
+    pre.textContent = details || '';
+    if (!details) {
+      pre.hidden = true;
+      copy.hidden = true;
+      toggle.textContent = 'Show details';
+    }
+  };
+}
+const setHintDetails = detailsBox('');
+const setMessageDetails = detailsBox('m');
+
+function showDevices({ devices, error, errorDetails }) {
   // Stage 1 shows the first phone found (multiple phones come later).
   current = devices[0] || null;
   const dot = $('status-dot');
@@ -13,10 +41,11 @@ function showDevices({ devices, error }) {
   if (!current) {
     $('device-name').textContent = 'No phone found';
     $('device-status').textContent = 'Plug your phone into this computer with a USB cable.';
-    setHint(
-      error ||
+    if (error) setHint(error, errorDetails);
+    else
+      setHint(
         'Phone already plugged in? USB Debugging is probably off on the phone. It needs to be turned on once — the step-by-step guide is coming in the next version.'
-    );
+      );
   } else {
     $('device-name').textContent = current.name;
     const version = current.androidVersion ? ` · Android ${current.androidVersion}` : '';
@@ -26,15 +55,17 @@ function showDevices({ devices, error }) {
   updateButton();
 }
 
-function setHint(text) {
-  $('hint').hidden = !text;
+function setHint(text, details) {
+  $('hint-box').hidden = !text;
   $('hint').textContent = text || '';
+  setHintDetails(details);
 }
 
-function setMessage(text, isError) {
-  $('message').hidden = !text;
+function setMessage(text, isError, details) {
+  $('message-box').hidden = !text;
   $('message').textContent = text || '';
   $('message').className = 'message' + (isError ? ' error' : '');
+  setMessageDetails(details);
 }
 
 function updateButton() {
@@ -54,11 +85,11 @@ $('mirror-btn').addEventListener('click', () => {
 });
 
 window.mirrox.onDevices(showDevices);
-window.mirrox.onMirrorState(({ state, message }) => {
+window.mirrox.onMirrorState(({ state, message, details }) => {
   mirrorState = state === 'error' ? 'stopped' : state;
   if (state === 'running') setMessage('Your phone screen is showing in a separate window. Close that window or press Stop to end.');
   else if (state === 'stopped') setMessage('');
-  else if (state === 'error') setMessage(message, true);
+  else if (state === 'error') setMessage(message, true, details);
   updateButton();
 });
 

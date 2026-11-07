@@ -1,7 +1,7 @@
 // Watches for Android phones plugged in over USB and reports their status.
 
 const { EventEmitter } = require('events');
-const { adb } = require('./adb');
+const { adb, friendlyAdbError } = require('./adb');
 
 // Turns the text printed by `adb devices -l` into a list of {serial, state, model}.
 function parseDevices(output) {
@@ -44,6 +44,8 @@ class DeviceWatcher extends EventEmitter {
     this.details = new Map(); // serial -> {name, androidVersion}
     this.lastJson = '';
     this.adbError = null;
+    this.adbErrorDetails = null;
+    this.serverStarted = false;
   }
 
   start() {
@@ -61,10 +63,19 @@ class DeviceWatcher extends EventEmitter {
   async poll() {
     let devices;
     try {
+      // Starting the helper the first time can be slow (antivirus scans), so allow it more time.
+      if (!this.serverStarted) {
+        await adb(['start-server'], { timeout: 30000 });
+        this.serverStarted = true;
+      }
       devices = parseDevices(await adb(['devices', '-l']));
       this.adbError = null;
+      this.adbErrorDetails = null;
     } catch (err) {
-      this.adbError = 'The phone connection helper could not start. Try closing and reopening MirroX.';
+      this.serverStarted = false;
+      this.adbError = friendlyAdbError(err);
+      this.adbErrorDetails = err.details || String(err && err.stack ? err.stack : err);
+      console.error('[adb]', this.adbErrorDetails);
       devices = [];
     }
 
@@ -76,7 +87,7 @@ class DeviceWatcher extends EventEmitter {
       result.push(entry);
     }
 
-    const payload = { devices: result, error: this.adbError };
+    const payload = { devices: result, error: this.adbError, errorDetails: this.adbErrorDetails };
     const json = JSON.stringify(payload);
     if (json !== this.lastJson) {
       this.lastJson = json;

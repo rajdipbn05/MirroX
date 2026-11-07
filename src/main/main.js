@@ -1,7 +1,7 @@
 // MirroX main process: owns the window, watches for phones, and runs the mirroring engine.
 
 const path = require('path');
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, clipboard } = require('electron');
 const { DeviceWatcher } = require('./android/devices');
 const { Mirror } = require('./android/mirror');
 const { adb } = require('./android/adb');
@@ -41,6 +41,7 @@ app.whenReady().then(() => {
   ipcMain.handle('get-devices', () => (watcher.lastJson ? JSON.parse(watcher.lastJson) : null));
   ipcMain.handle('start-mirror', (_e, device) => mirror.start(device));
   ipcMain.handle('stop-mirror', () => mirror.stop());
+  ipcMain.handle('copy-text', (_e, text) => clipboard.writeText(String(text)));
 });
 
 app.on('window-all-closed', () => app.quit());

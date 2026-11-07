@@ -48,6 +48,7 @@ main { flex: 1; padding: 16px 32px; display: flex; flex-direction: column; gap: 
 .device-name { font-size: 18px; font-weight: 600; }
 .device-status { color: var(--muted); margin-top: 2px; }
 
+.hint p { margin: 0; }
 .hint {
   margin: 0;
   padding: 12px 16px;
@@ -75,3 +76,28 @@ button.primary.stop { background: #3a3f4b; }
 .message.error { color: var(--red); }
 
 footer { padding: 12px 32px 20px; color: var(--grey); font-size: 12px; }
+
+.details-actions { display: flex; gap: 16px; margin-top: 8px; }
+button.link {
+  padding: 0;
+  background: none;
+  border: none;
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+pre.details {
+  margin: 8px 0 0;
+  padding: 10px;
+  max-height: 180px;
+  overflow: auto;
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: 8px;
+  color: var(--text);
+  font: 12px/1.4 Consolas, "Cascadia Mono", monospace;
+  white-space: pre-wrap;
+  word-break: break-all;
+  user-select: text;
+}

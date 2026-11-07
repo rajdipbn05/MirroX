@@ -55,9 +55,13 @@ class Mirror extends EventEmitter {
     proc.stdout.on('data', onOutput);
     proc.stderr.on('data', onOutput);
 
-    proc.on('error', () => {
+    proc.on('error', (err) => {
       this.proc = null;
-      this.emit('state', { state: 'error', message: 'MirroX could not start its mirroring engine. Try reinstalling MirroX.' });
+      this.emit('state', {
+        state: 'error',
+        message: 'MirroX could not start its mirroring engine. Download MirroX again; if this keeps happening, see "Show details".',
+        details: `Error: ${err.message}\nscrcpy path: ${engines.scrcpyPath()}\nEngine folder: ${engines.scrcpyDir()}`,
+      });
     });
     proc.on('exit', (code) => {
       this.proc = null;
