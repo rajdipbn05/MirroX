@@ -147,6 +147,7 @@ class StreamClient extends EventEmitter {
       }
       const data = await reader.read(h.size);
       if (h.config) this.lastConfig = Buffer.from(data);
+      this.videoBytes = (this.videoBytes || 0) + data.length;
       this.emit('video', h, data);
     }
   }
@@ -163,6 +164,13 @@ class StreamClient extends EventEmitter {
       const data = await reader.read(h.size);
       if (!h.config) this.emit('audio', data);
     }
+  }
+
+  // Video data received since the last call, in megabits per second (call once per second).
+  takeMbps(seconds) {
+    const bytes = this.videoBytes || 0;
+    this.videoBytes = 0;
+    return Math.round(((bytes * 8) / 1e6 / seconds) * 10) / 10;
   }
 
   sendControl(buf) {

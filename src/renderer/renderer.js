@@ -161,6 +161,9 @@ function liveNote() {
   if (stats.width) parts.push(`picture ${stats.width}×${stats.height}`);
   if (stats.skipped) parts.push(`${stats.skipped} frames dropped by this computer`);
   if (stats.decodeMs != null) parts.push(`decoding ${stats.decodeMs} ms`);
+  if (stats.mbps != null) parts.push(`${stats.mbps} Mbps arriving from the phone (asked for ${stats.requestedMbps})`);
+  if (stats.encoder) parts.push(`phone encoder: ${stats.encoder}`);
+  if (stats.shrunk) parts.push(`⚠ ${stats.shrunk}`);
   return parts.length ? `${RUNNING_NOTE}\nLive: ${parts.join(' · ')}` : RUNNING_NOTE;
 }
 

@@ -57,8 +57,13 @@ class ServerSession extends EventEmitter {
       ...serverArgs({ scid: scidHex, settings, audio: withAudio }),
     ];
     this.proc = spawn(engines.adbPath(), args, { windowsHide: true, env: adbEnv() });
+    this.diag = ''; // encoder lines kept for quality diagnostics (the log itself is trimmed)
     const onOut = (chunk) => {
-      this.log = (this.log + chunk.toString()).slice(-12000);
+      const text = chunk.toString();
+      this.log = (this.log + text).slice(-12000);
+      for (const line of text.split(/\r?\n/)) {
+        if (/Using video encoder|Applying video encoder constraints|Retrying with -m/.test(line)) this.diag += line + '\n';
+      }
     };
     this.proc.stdout.on('data', onOut);
     this.proc.stderr.on('data', onOut);

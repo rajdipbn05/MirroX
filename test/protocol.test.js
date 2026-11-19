@@ -53,7 +53,7 @@ test('codec string from SPS', () => {
 
 test('server arguments', () => {
   const args = P.serverArgs({ scid: '0000abcd', settings: { bitrate: 16, maxFps: 120, maxSize: 1920, lowLatency: true }, audio: true });
-  for (const a of ['scid=0000abcd', 'tunnel_forward=true', 'video_codec=h264', 'video_bit_rate=16000000', 'max_fps=120', 'max_size=1920', 'audio_codec=raw', 'video_codec_options=priority:int=0'])
+  for (const a of ['scid=0000abcd', 'log_level=debug', 'tunnel_forward=true', 'video_codec=h264', 'video_bit_rate=16000000', 'max_fps=120', 'max_size=1920', 'audio_codec=raw', 'video_codec_options=priority:int=0'])
     assert.ok(args.includes(a), a);
   assert.ok(P.serverArgs({ scid: '1', settings: { bitrate: 8, maxFps: 60, maxSize: 0 }, audio: false }).includes('audio=false'));
 });

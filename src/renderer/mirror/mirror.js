@@ -316,9 +316,17 @@ setInterval(() => {
   framesThisSecond = 0;
   decodeMsSum = 0;
   decodeMsCount = 0;
-  $('tb-fps').textContent = firstFrame ? '· Connecting…' : `· ${stats.fps} FPS`;
+  $('tb-fps').textContent = firstFrame
+    ? '· Connecting…'
+    : `· ${stats.fps} FPS · ${canvas.width}×${canvas.height}${quality.mbps != null ? ` · ${quality.mbps} Mbps` : ''}`;
   if (!firstFrame) ipcRenderer.send('mirror:stats', stats);
 }, 1000);
+
+// Real bitrate etc. from the main process (shown in the title bar).
+let quality = {};
+ipcRenderer.on('quality', (_e, q) => {
+  quality = q;
+});
 
 // ---------- Start ----------
 

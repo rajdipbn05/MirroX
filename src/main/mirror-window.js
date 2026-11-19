@@ -40,7 +40,7 @@ class MirrorController extends EventEmitter {
 
     const mine = (e) => this.win && !this.win.isDestroyed() && e.sender === this.win.webContents;
     ipcMain.on('mirror:ready', (e) => mine(e) && this.onWindowReady());
-    ipcMain.on('mirror:stats', (e, s) => mine(e) && this.emit('stats', s));
+    ipcMain.on('mirror:stats', (e, s) => mine(e) && this.emit('stats', { ...s, ...this.qualityInfo() }));
     ipcMain.on('mirror:control', (e, buf) => mine(e) && this.client && this.client.sendControl(Buffer.from(buf)));
     ipcMain.on('mirror:action', (e, a) => mine(e) && this.onAction(a));
     ipcMain.on('mirror:first-frame', (e) => mine(e) && this.emit('state', { state: 'running' }));
@@ -138,6 +138,24 @@ class MirrorController extends EventEmitter {
       };
       this.finish();
     });
+  }
+
+  // Quality diagnostics: real bitrate from the phone, its encoder, and whether it shrank the picture.
+  qualityInfo() {
+    const now = Date.now();
+    const secs = this.lastRateAt ? (now - this.lastRateAt) / 1000 : 1;
+    this.lastRateAt = now;
+    const mbps = this.client ? this.client.takeMbps(Math.max(0.5, secs)) : null;
+    const log = (this.session && this.session.diag) || '';
+    const enc = /Using video encoder: '([^']+)'/.exec(log);
+    const retry = /Retrying with -m(\d+)/.exec(log);
+    const constrained = /Applying video encoder constraints/.test(log);
+    const info = { mbps, requestedMbps: this.perf ? this.perf.bitrate : null };
+    if (enc) info.encoder = enc[1];
+    if (retry) info.shrunk = `the phone could not encode full size and dropped to ${retry[1]} px`;
+    else if (constrained) info.shrunk = "the phone resized the picture to fit its video encoder's limits";
+    this.sendToWindow('quality', info);
+    return info;
   }
 
   serverLog() {

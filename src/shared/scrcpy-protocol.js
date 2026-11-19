@@ -157,7 +157,7 @@ function serverArgs({ scid, settings, audio }) {
   const s = settings;
   const args = [
     `scid=${scid}`,
-    'log_level=info',
+    'log_level=debug', // so the phone reports which video encoder it uses (quality diagnostics)
     'tunnel_forward=true',
     'video_codec=h264',
     `video_bit_rate=${s.bitrate * 1000000}`,
