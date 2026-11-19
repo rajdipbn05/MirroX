@@ -7,8 +7,9 @@ const dev = { serial: 'ZY22', name: 'moto g57 power' };
 
 test('Gaming preset: high fps, high bitrate, low-delay — and NOT fullscreen/borderless', () => {
   const args = buildArgs(dev, effectiveSettings({ preset: 'gaming' }));
-  for (const a of ['--max-fps=120', '--video-bit-rate=16M', '--max-size=1920', '--video-codec=h264', '--video-codec-options=priority:int=0', '--print-fps', '--serial=ZY22'])
+  for (const a of ['--max-fps=120', '--video-bit-rate=32M', '--video-codec=h264', '--video-codec-options=priority:int=0', '--print-fps', '--serial=ZY22'])
     assert.ok(args.includes(a), a);
+  assert.ok(!args.some((a) => a.startsWith('--max-size')), 'full phone resolution');
   assert.ok(!args.includes('--no-audio'));
   assert.ok(!args.includes('--fullscreen'));
   assert.ok(!args.includes('--window-borderless'));
@@ -36,7 +37,7 @@ test('retry without codec options', () => {
 test('custom settings are used and kept in range', () => {
   const s = effectiveSettings({ preset: 'custom', custom: { maxSize: 0, bitrate: 999, maxFps: 77, audio: false } });
   assert.strictEqual(s.maxSize, 0);
-  assert.strictEqual(s.bitrate, 40);
+  assert.strictEqual(s.bitrate, 80);
   assert.strictEqual(s.maxFps, 60);
   const args = buildArgs(dev, s);
   assert.ok(!args.some((a) => a.startsWith('--max-size')));

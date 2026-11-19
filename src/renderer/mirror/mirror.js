@@ -11,6 +11,7 @@ const canvas = $('screen');
 // Standard drawing path (the "desynchronized" low-latency path left a thin coloured line around
 // the picture on some Windows graphics drivers).
 const ctx = canvas.getContext('2d', { alpha: false });
+ctx.imageSmoothingQuality = 'high';
 
 // Place the canvas exactly over the picture area (letterboxed inside the window), in whole pixels.
 function layoutCanvas() {

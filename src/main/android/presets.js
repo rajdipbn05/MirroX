@@ -5,15 +5,15 @@
 const RESOLUTIONS = [720, 1080, 1280, 1600, 1920, 0]; // 0 = phone's full resolution
 const FPS_CHOICES = [30, 60, 90, 120, 144];
 const BITRATE_MIN = 2;
-const BITRATE_MAX = 40; // Mbps
+const BITRATE_MAX = 80; // Mbps (USB easily carries this)
 
 const PRESETS = {
   gaming: {
     label: 'Gaming',
-    description: 'Lowest delay and highest frame rate. Turns the phone to landscape.',
+    description: "Full phone resolution, high quality, up to 120 FPS. Turns the phone to landscape.",
     settings: {
-      maxSize: 1920,
-      bitrate: 16,
+      maxSize: 0, // phone's full resolution (sharpest picture)
+      bitrate: 32,
       maxFps: 120,
       orientation: 'landscape',
       audio: true,
@@ -23,10 +23,10 @@ const PRESETS = {
   },
   normal: {
     label: 'Normal',
-    description: 'Balanced quality and smoothness. Follows your phone\'s rotation.',
+    description: "Full phone resolution, good quality, 60 FPS. Follows your phone's rotation.",
     settings: {
-      maxSize: 1920,
-      bitrate: 8,
+      maxSize: 0,
+      bitrate: 20,
       maxFps: 60,
       orientation: 'auto',
       audio: true,
