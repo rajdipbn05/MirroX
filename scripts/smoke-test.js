@@ -308,7 +308,7 @@ async function escTest() {
 }
 
 const EXPECT = {
-  default: (r) => r.title === 'No phone found' && !r.details,
+  default: (r) => r.title === 'No phone found' && !r.details && r.customOpensAdvanced !== false && r.desktopShortcut !== false,
   '--block-default-port': (r) => r.title === 'No phone found' && !r.details,
   '--fake-conflict': (r) => /DouWan/.test(r.title) && /blocking/.test(r.title) && /Close/.test(r.actions),
 };
@@ -346,6 +346,17 @@ const EXPECT = {
   await page.waitForTimeout(500);
   await page.screenshot({ path: `smoke-${scenario.replace(/^--/, '')}.png` });
 
+  // Extra checks in the plain scenario: Custom opens Advanced; desktop shortcut (Windows).
+  if (scenario === 'default') {
+    await page.click('[data-preset="custom"]');
+    await page.waitForTimeout(500);
+    r.customOpensAdvanced = await page.isVisible('#advanced');
+    await page.click('[data-preset="gaming"]');
+    if (process.platform === 'win32') {
+      const link = path.join(os.homedir(), 'Desktop', 'MirroX.lnk');
+      r.desktopShortcut = fs.existsSync(link);
+    }
+  }
   const report = `scenario: ${scenario}\n` + Object.entries(r).map(([k, v]) => `${k}: ${v}`).join('\n');
   out(report);
   if (process.env.GITHUB_STEP_SUMMARY)

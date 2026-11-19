@@ -311,16 +311,22 @@ function changeCustom(field, value) {
   saveSettings({ preset: 'custom', custom: { ...effective(), [field]: value } });
 }
 
-$('preset-seg').addEventListener('click', (e) => {
-  const preset = e.target.closest('button')?.dataset.preset;
-  if (preset && preset !== cfg.settings.preset) saveSettings({ preset });
-});
-$('adv-toggle').addEventListener('click', () => {
-  const open = $('advanced').hidden;
+function setAdvancedOpen(open) {
   $('advanced').hidden = !open;
   $('adv-toggle').textContent = open ? 'Advanced settings ▾' : 'Advanced settings ▸';
   $('adv-toggle').setAttribute('aria-expanded', String(open));
+}
+$('preset-seg').addEventListener('click', (e) => {
+  const preset = e.target.closest('button')?.dataset.preset;
+  if (!preset) return;
+  // "Custom" means "let me set it myself": show the sliders right away.
+  if (preset === 'custom') {
+    setAdvancedOpen(true);
+    $('advanced').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+  if (preset !== cfg.settings.preset) saveSettings({ preset });
 });
+$('adv-toggle').addEventListener('click', () => setAdvancedOpen($('advanced').hidden));
 $('res').addEventListener('input', () => ($('res-val').textContent = cfg.choices.resolutions[$('res').value] ? `${cfg.choices.resolutions[$('res').value]} px` : "Phone's full resolution"));
 $('res').addEventListener('change', () => changeCustom('maxSize', cfg.choices.resolutions[$('res').value]));
 $('bitrate').addEventListener('input', () => ($('bitrate-val').textContent = `${$('bitrate').value} Mbps`));

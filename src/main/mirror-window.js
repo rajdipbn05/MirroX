@@ -247,6 +247,7 @@ class MirrorController extends EventEmitter {
       minHeight: 160,
       show: false,
       title: this.title,
+      icon: path.join(__dirname, 'icon.ico'),
       backgroundColor: '#000000',
       autoHideMenuBar: true,
       alwaysOnTop: !!ws.alwaysOnTop,

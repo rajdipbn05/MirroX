@@ -1,8 +1,8 @@
 {
   "name": "mirrox",
   "productName": "MirroX",
-  "version": "0.7.0",
-  "description": "Mirror your phone screen on your computer over USB — no phone app needed.",
+  "version": "0.7.1",
+  "description": "Mirror your phone screen on your computer over USB \u2014 no phone app needed.",
   "main": "src/main/main.js",
   "license": "MIT",
   "scripts": {
@@ -25,14 +25,16 @@
       }
     ],
     "win": {
-      "signAndEditExecutable": false
+      "signAndEditExecutable": false,
+      "icon": "build/icon.ico"
     },
     "portable": {
       "artifactName": "MirroX-${version}-portable.exe"
     },
     "directories": {
       "output": "dist"
-    }
+    },
+    "icon": "build/icon.png"
   },
   "devDependencies": {
     "electron": "^45.2.3",

@@ -9,6 +9,9 @@ const platform = require('./platform');
 const settingsStore = require('./settings');
 const presets = require('./android/presets');
 const { MirrorController } = require('./mirror-window');
+const { ensureDesktopShortcut } = require('./shortcut');
+
+const ICON = path.join(__dirname, 'icon.ico');
 
 let win;
 let settings; // loaded once the app is ready
@@ -75,6 +78,7 @@ function createWindow() {
     minWidth: 460,
     minHeight: 600,
     title: 'MirroX',
+    icon: ICON,
     backgroundColor: '#0f1115',
     autoHideMenuBar: true,
     webPreferences: {
@@ -122,6 +126,12 @@ function stopMirror() {
 
 app.whenReady().then(() => {
   settings = settingsStore.load();
+  // First launch on Windows: put a MirroX shortcut on the desktop.
+  const shortcut = ensureDesktopShortcut(settings.shortcut);
+  if (JSON.stringify(shortcut) !== JSON.stringify(settings.shortcut)) {
+    settings.shortcut = shortcut;
+    saveSettings();
+  }
   controller = new MirrorController(windowStore, () => (win && !win.isDestroyed() ? win.getBounds() : null));
   controller.control = settings.control;
   createWindow();
