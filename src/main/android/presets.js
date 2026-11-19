@@ -83,6 +83,10 @@ function buildArgs({ serial, name }, settings, { codecOptions = true } = {}) {
   if (s.borderless) args.push('--window-borderless');
   if (s.alwaysOnTop) args.push('--always-on-top');
   if (!s.audio) args.push('--no-audio');
+  else if (settings.audioSource === 'playback') {
+    args.push('--audio-source=playback'); // game sound + teammates' voice chat (Android 13+)
+    if (settings.audioDup) args.push('--audio-dup'); // keep playing on the phone too
+  }
   if (s.screenOff) args.push('--turn-screen-off');
   if (settings.control === false) args.push('--no-control'); // keyboard & mouse control off
   if (s.lowLatency) {

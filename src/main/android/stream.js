@@ -153,7 +153,10 @@ class StreamClient extends EventEmitter {
 
   async readAudio(reader) {
     const codec = (await reader.read(4)).readUInt32BE(0);
-    if (codec !== P.CODEC.RAW) return; // disabled by the phone (Android < 11): picture only
+    if (codec !== P.CODEC.RAW) {
+      this.emit('audio-disabled', codec); // the phone could not capture sound: picture only
+      return;
+    }
     this.emit('audio-start');
     for (;;) {
       const h = P.parseHeader(await reader.read(P.HEADER_SIZE));

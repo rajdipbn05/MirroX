@@ -167,7 +167,13 @@ function serverArgs({ scid, settings, audio }) {
   ];
   if (s.maxSize) args.push(`max_size=${s.maxSize}`);
   if (s.lowLatency) args.push('video_codec_options=priority:int=0');
-  if (audio) args.push('audio_codec=raw');
+  if (audio) {
+    args.push('audio_codec=raw');
+    if (s.audioSource === 'playback') {
+      args.push('audio_source=playback'); // game sound + teammates' voice chat (Android 13+)
+      if (s.audioDup) args.push('audio_dup=true'); // keep playing on the phone too
+    }
+  }
   else args.push('audio=false');
   return args;
 }

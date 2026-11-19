@@ -15,12 +15,16 @@ let settings; // loaded once the app is ready
 const watcher = new DeviceWatcher();
 const classic = new Mirror();
 let escExit = null; // Windows: Esc leaves fullscreen in scrcpy's window
-const { VoiceCapture, VOICE_METHODS } = require('./android/voice');
-const voice = new VoiceCapture(); // "My voice (phone mic)"
-let mirroringSerial = null; // phone being mirrored (for the voice capture)
+const fallbackToOutput = new Set(); // phones where game+voice-chat capture failed (this session)
 
-function startVoiceIfWanted() {
-  if (settings.voice.enabled && mirroringSerial) voice.start(mirroringSerial, settings.voice.method);
+// Which phone sound to capture:
+//   'playback' (Android 13+): game sound AND teammates' in-game voice chat
+//   'output'   (older phones, or if playback fails): game sound only (voice chat is excluded)
+function soundOptions(phone) {
+  const major = parseInt(String(phone.androidVersion || ''), 10);
+  const canPlayback = Number.isFinite(major) && major >= 13;
+  const playback = settings.sound.voiceChat && canPlayback && !fallbackToOutput.has(phone.serial);
+  return { audioSource: playback ? 'playback' : 'output', audioDup: playback && settings.sound.alsoOnPhone };
 }
 
 // scrcpy's window has no "Esc exits fullscreen" of its own: add it while mirroring (Windows).
@@ -36,6 +40,7 @@ function stopEscExit() {
 }
 let controller; // created once the app is ready (needs the screen module)
 let active = null; // the engine currently mirroring: controller or classic
+let lastPerf = null; // settings used for the current mirroring
 
 function send(channel, payload) {
   if (win && !win.isDestroyed()) win.webContents.send(channel, payload);
@@ -83,9 +88,9 @@ function startMirror() {
   const testPort = Number(process.env.MIRROX_TEST_MIRROR_PORT) || 0; // automated tests only
   if (!testPort && !(s && s.ready)) return;
   if ((active && active.running) || controller.running || classic.running) return;
-  const perf = presets.effectiveSettings(settings);
+  const perf = { ...presets.effectiveSettings(settings), ...(testPort ? {} : soundOptions(s)) };
+  lastPerf = perf;
   active = testPort ? controller : engineFor();
-  mirroringSerial = testPort ? null : s.serial;
   if (active === classic) {
     const w = controller.modeInfo();
     classic.start({ serial: s.serial, name: s.name }, { ...perf, fullscreen: w.mode === 'fullscreen', borderless: w.mode === 'borderless', alwaysOnTop: w.alwaysOnTop, control: settings.control });
@@ -108,13 +113,16 @@ app.whenReady().then(() => {
   watcher.on('change', (state) => send('phone-state', state));
   for (const engine of [controller, classic]) {
     engine.on('state', (s) => send('mirror-state', s));
-    // The voice capture runs alongside mirroring (either window).
-    engine.on('state', (s) => {
-      if (s.state === 'running' && !voice.running) startVoiceIfWanted();
-      if (s.state === 'stopped' || s.state === 'error') {
-        voice.stop();
-        mirroringSerial = null;
-      }
+    // Game + voice-chat capture failed on this phone: switch to game sound only and restart.
+    engine.on('notice', (n) => {
+      if (n.type !== 'playback-failed' || !lastPerf || lastPerf.audioSource !== 'playback' || !watcher.current) return;
+      fallbackToOutput.add(watcher.current.serial);
+      send('sound-notice', {
+        message: "This phone didn't allow capturing teammates' voice chat, so MirroX switched to game sound only. Mirroring restarts now.",
+        details: n.details,
+      });
+      engine.once('state', (st) => st.state !== 'starting' && setTimeout(startMirror, 800));
+      engine.stop();
     });
     engine.on('stats', (s) => send('mirror-stats', s));
   }
@@ -132,8 +140,7 @@ app.whenReady().then(() => {
     settings: { preset: settings.preset, custom: settings.custom, newWindow: settings.newWindow },
     window: controller.modeInfo(),
     control: settings.control,
-    voice: settings.voice,
-    voiceMethods: VOICE_METHODS,
+    sound: settings.sound,
     presets: presets.PRESETS,
     choices: {
       resolutions: presets.RESOLUTIONS,
@@ -178,16 +185,14 @@ app.whenReady().then(() => {
     return { control: settings.control, restart: classic.running };
   });
 
-  // "My voice (phone mic)" on/off and capture method; applied right away while mirroring.
-  voice.on('state', (v) => send('voice-state', v));
-  ipcMain.handle('set-voice', (_e, v) => {
-    if (typeof v.enabled === 'boolean') settings.voice.enabled = v.enabled;
-    if (typeof v.method === 'string' && VOICE_METHODS[v.method]) settings.voice.method = v.method;
+  // Sound options: teammates' voice chat on/off, also play on the phone. Apply on the next start.
+  ipcMain.handle('set-sound', (_e, v) => {
+    if (typeof v.voiceChat === 'boolean') settings.sound.voiceChat = v.voiceChat;
+    if (typeof v.alsoOnPhone === 'boolean') settings.sound.alsoOnPhone = v.alsoOnPhone;
+    if (v.voiceChat) fallbackToOutput.clear(); // let the user try again
     saveSettings();
     const mirroring = (active && active.running) || classic.running || controller.running;
-    if (!settings.voice.enabled) voice.stop();
-    else if (mirroring) startVoiceIfWanted(); // (re)start with the chosen method
-    return settings.voice;
+    return { ...settings.sound, restart: mirroring };
   });
 
   ipcMain.handle('start-mirror', startMirror);
@@ -226,7 +231,6 @@ app.on('window-all-closed', () => app.quit());
 app.on('before-quit', () => {
   watcher.stop();
   stopEscExit();
-  voice.stop();
   stopMirror();
   // Stop the background ADB helper so it doesn't keep running after MirroX closes.
   adb(['kill-server'], { timeout: 3000 }).catch(() => {});

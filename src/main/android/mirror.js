@@ -49,7 +49,8 @@ class Mirror extends EventEmitter {
     this.launching = true;
     this.userStopped = false;
     this.stats = {};
-    const s = sanitize(settings);
+    // Options that sanitize() doesn't keep (they aren't preset values) are carried separately.
+    const s = { ...sanitize(settings), control: settings.control, audioSource: settings.audioSource, audioDup: settings.audioDup };
     this.emit('state', { state: 'starting' });
     try {
       await this.applyOrientation(device.serial, s.orientation);
@@ -63,6 +64,7 @@ class Mirror extends EventEmitter {
 
   launch(device, s, codecOptions) {
     const args = buildArgs(device, s, { codecOptions });
+    this.noticeSent = false;
     const command = `scrcpy ${args.join(' ')}\n`;
     let log = ''; // scrcpy's own output (the command line is kept separate so it isn't searched)
     let running = false;
@@ -86,6 +88,11 @@ class Mirror extends EventEmitter {
         if (!running && /texture:|renderer:/i.test(line)) {
           running = true;
           this.emit('state', { state: 'running' });
+        }
+        // Game + voice-chat capture refused by this phone (the picture keeps going without sound).
+        if (!this.noticeSent && s.audioSource === 'playback' && /could not capture audio playback|audio disabled|stream explicitly disabled/i.test(line)) {
+          this.noticeSent = true;
+          this.emit('notice', { type: 'playback-failed', details: command + log.slice(-3000) });
         }
         const stat = parseStats(line);
         if (stat && stat.fps != null && !running) {

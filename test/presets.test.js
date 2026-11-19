@@ -60,3 +60,14 @@ test('keyboard & mouse control off -> --no-control (scrcpy window)', () => {
   assert.ok(buildArgs(dev, { ...effectiveSettings({ preset: 'normal' }), control: false }).includes('--no-control'));
   assert.ok(!buildArgs(dev, { ...effectiveSettings({ preset: 'normal' }), control: true }).includes('--no-control'));
 });
+
+test("teammates' voice chat: playback source (+ optional keep playing on phone)", () => {
+  const base = effectiveSettings({ preset: 'gaming' });
+  const a = buildArgs(dev, { ...base, audioSource: 'playback', audioDup: false });
+  assert.ok(a.includes('--audio-source=playback'));
+  assert.ok(!a.includes('--audio-dup'));
+  assert.ok(buildArgs(dev, { ...base, audioSource: 'playback', audioDup: true }).includes('--audio-dup'));
+  const o = buildArgs(dev, { ...base, audioSource: 'output' });
+  assert.ok(!o.some((x) => x.startsWith('--audio-source')) && !o.includes('--audio-dup'));
+  assert.ok(!buildArgs(dev, { ...base, audio: false, audioSource: 'playback' }).some((x) => x.startsWith('--audio-source')));
+});

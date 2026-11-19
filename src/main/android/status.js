@@ -74,7 +74,7 @@ function classify({ devices = [], adbError = null, adbErrorDetails = null, usb =
   if (phone) {
     const version = phone.androidVersion ? `Android ${phone.androidVersion} · ` : '';
     if (phone.state === 'device')
-      return { status: 'ready', serial: phone.serial, name: phone.name, title: phone.name, subtitle: `${version}Connected`, ready: true };
+      return { status: 'ready', serial: phone.serial, name: phone.name, androidVersion: phone.androidVersion || '', title: phone.name, subtitle: `${version}Connected`, ready: true };
     if (phone.state === 'unauthorized')
       return {
         status: 'needs-permission',

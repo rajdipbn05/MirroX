@@ -231,47 +231,27 @@ $('win-fullscreen').addEventListener('click', () => setWindow({ mode: windowStat
 $('win-borderless').addEventListener('click', () => setWindow({ mode: windowState.mode === 'borderless' ? 'normal' : 'borderless' }));
 $('win-top').addEventListener('click', () => setWindow({ alwaysOnTop: !windowState.alwaysOnTop }));
 $('newWindow').addEventListener('change', () => saveSettings({ preset: cfg.settings.preset, newWindow: $('newWindow').checked }));
-// ---------- My voice (phone mic) ----------
-let voiceCfg = { enabled: false, method: 'mic-voice-communication' };
-let voiceState = { state: 'off' };
-const setVoiceDetails = detailsBox('v');
-
-function renderVoice() {
-  $('voice').setAttribute('aria-pressed', String(voiceCfg.enabled));
-  $('voice').textContent = `🎙️ My voice (phone mic): ${voiceCfg.enabled ? 'On' : 'Off'}`;
-  if ([...$('voice-method').options].some((o) => o.value === voiceCfg.method)) $('voice-method').value = voiceCfg.method;
-  const box = $('voice-status');
-  let text = '';
-  let cls = '';
-  if (voiceCfg.enabled) {
-    if (voiceState.state === 'on') {
-      text = '🎙️ Your voice from the phone mic is playing on this computer. Speak — you should hear yourself here, and your in-game friends should still hear you.';
-      cls = 'on';
-    } else if (voiceState.state === 'starting') text = 'Starting the phone microphone…';
-    else if (voiceState.state === 'error') {
-      text = voiceState.message;
-      cls = 'error';
-    } else text = 'Your voice will be added when mirroring starts.';
-  }
-  box.hidden = !text;
-  box.className = `voice-status ${cls}`;
-  $('voice-message').textContent = text;
-  setVoiceDetails(voiceState.state === 'error' && voiceCfg.enabled ? voiceState.details : null);
+// ---------- Sound: teammates' voice chat, also play on phone ----------
+let soundCfg = { voiceChat: true, alsoOnPhone: false };
+function renderSound() {
+  $('sound-voicechat').setAttribute('aria-pressed', String(soundCfg.voiceChat));
+  $('sound-voicechat').textContent = `🎧 Teammates' voice chat: ${soundCfg.voiceChat ? 'On' : 'Off'}`;
+  $('sound-phone').setAttribute('aria-pressed', String(soundCfg.alsoOnPhone));
+  $('sound-phone').textContent = `📱 Also play on phone: ${soundCfg.alsoOnPhone ? 'On' : 'Off'}`;
+  $('sound-phone').disabled = !soundCfg.voiceChat; // only possible with the voice-chat capture
 }
-
-$('voice').addEventListener('click', async () => {
-  voiceCfg = await window.mirrox.setVoice({ enabled: !voiceCfg.enabled });
-  if (!voiceCfg.enabled) voiceState = { state: 'off' };
-  renderVoice();
-});
-$('voice-method').addEventListener('change', async () => {
-  voiceCfg = await window.mirrox.setVoice({ method: $('voice-method').value });
-  renderVoice();
-});
-window.mirrox.onVoiceState((v) => {
-  voiceState = v;
-  renderVoice();
-});
+async function setSound(v) {
+  const r = await window.mirrox.setSound(v);
+  soundCfg = { voiceChat: r.voiceChat, alsoOnPhone: r.alsoOnPhone };
+  renderSound();
+  if (r.restart) {
+    showNote('Sound changes apply when mirroring restarts.');
+    $('restart-btn').hidden = false;
+  }
+}
+$('sound-voicechat').addEventListener('click', () => setSound({ voiceChat: !soundCfg.voiceChat }));
+$('sound-phone').addEventListener('click', () => setSound({ alsoOnPhone: !soundCfg.alsoOnPhone }));
+window.mirrox.onSoundNotice((n) => showNote(n.message, true, n.details));
 
 // ---------- Keyboard & mouse control ----------
 let controlOn = true;
@@ -339,9 +319,8 @@ window.mirrox.getState().then((st) => {
   renderWindow();
   controlOn = st.control !== false;
   renderControl();
-  for (const [value, label] of Object.entries(st.voiceMethods || {})) $('voice-method').add(new Option(label, value));
-  voiceCfg = st.voice || voiceCfg;
-  renderVoice();
+  soundCfg = st.sound || soundCfg;
+  renderSound();
   renderSettings();
   if (st.phone) phone = st.phone;
   render();

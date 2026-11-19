@@ -119,6 +119,11 @@ class MirrorController extends EventEmitter {
       this.sendToWindow('video', pkt);
     });
     c.on('audio-start', () => this.sendToWindow('audio-start'));
+    c.on('audio-disabled', () => {
+      if (this.perf && this.perf.audioSource === 'playback') {
+        setTimeout(() => this.emit('notice', { type: 'playback-failed', details: this.serverLog() }), 500);
+      }
+    });
     c.on('audio', (data) => this.sendToWindow('audio', data));
     c.on('ended', async (err) => {
       if (this.cancelled) return;

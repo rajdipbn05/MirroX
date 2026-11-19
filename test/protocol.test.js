@@ -82,3 +82,10 @@ test('saved position is only reused if it is on that monitor', () => {
   assert.ok(!isOnScreen(null, [area]));
   assert.ok(isOnScreen({ x: 2000, y: 100, width: 400, height: 800 }, [area, { x: 1920, y: 0, width: 1920, height: 1080 }]));
 });
+
+test("server args: teammates' voice chat (playback) for the MirroX window", () => {
+  const s = { bitrate: 8, maxFps: 60, maxSize: 0, audioSource: 'playback', audioDup: true };
+  const a = P.serverArgs({ scid: '1', settings: s, audio: true });
+  assert.ok(a.includes('audio_source=playback') && a.includes('audio_dup=true') && a.includes('audio_codec=raw'));
+  assert.ok(!P.serverArgs({ scid: '1', settings: { ...s, audioSource: 'output' }, audio: true }).some((x) => x.startsWith('audio_source')));
+});
