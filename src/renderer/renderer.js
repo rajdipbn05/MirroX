@@ -231,6 +231,48 @@ $('win-fullscreen').addEventListener('click', () => setWindow({ mode: windowStat
 $('win-borderless').addEventListener('click', () => setWindow({ mode: windowState.mode === 'borderless' ? 'normal' : 'borderless' }));
 $('win-top').addEventListener('click', () => setWindow({ alwaysOnTop: !windowState.alwaysOnTop }));
 $('newWindow').addEventListener('change', () => saveSettings({ preset: cfg.settings.preset, newWindow: $('newWindow').checked }));
+// ---------- My voice (phone mic) ----------
+let voiceCfg = { enabled: false, method: 'mic-voice-communication' };
+let voiceState = { state: 'off' };
+const setVoiceDetails = detailsBox('v');
+
+function renderVoice() {
+  $('voice').setAttribute('aria-pressed', String(voiceCfg.enabled));
+  $('voice').textContent = `🎙️ My voice (phone mic): ${voiceCfg.enabled ? 'On' : 'Off'}`;
+  if ([...$('voice-method').options].some((o) => o.value === voiceCfg.method)) $('voice-method').value = voiceCfg.method;
+  const box = $('voice-status');
+  let text = '';
+  let cls = '';
+  if (voiceCfg.enabled) {
+    if (voiceState.state === 'on') {
+      text = '🎙️ Your voice from the phone mic is playing on this computer. Speak — you should hear yourself here, and your in-game friends should still hear you.';
+      cls = 'on';
+    } else if (voiceState.state === 'starting') text = 'Starting the phone microphone…';
+    else if (voiceState.state === 'error') {
+      text = voiceState.message;
+      cls = 'error';
+    } else text = 'Your voice will be added when mirroring starts.';
+  }
+  box.hidden = !text;
+  box.className = `voice-status ${cls}`;
+  $('voice-message').textContent = text;
+  setVoiceDetails(voiceState.state === 'error' && voiceCfg.enabled ? voiceState.details : null);
+}
+
+$('voice').addEventListener('click', async () => {
+  voiceCfg = await window.mirrox.setVoice({ enabled: !voiceCfg.enabled });
+  if (!voiceCfg.enabled) voiceState = { state: 'off' };
+  renderVoice();
+});
+$('voice-method').addEventListener('change', async () => {
+  voiceCfg = await window.mirrox.setVoice({ method: $('voice-method').value });
+  renderVoice();
+});
+window.mirrox.onVoiceState((v) => {
+  voiceState = v;
+  renderVoice();
+});
+
 // ---------- Keyboard & mouse control ----------
 let controlOn = true;
 function renderControl() {
@@ -297,6 +339,9 @@ window.mirrox.getState().then((st) => {
   renderWindow();
   controlOn = st.control !== false;
   renderControl();
+  for (const [value, label] of Object.entries(st.voiceMethods || {})) $('voice-method').add(new Option(label, value));
+  voiceCfg = st.voice || voiceCfg;
+  renderVoice();
   renderSettings();
   if (st.phone) phone = st.phone;
   render();

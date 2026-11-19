@@ -33,7 +33,7 @@ function file() {
 }
 
 function defaults() {
-  return { ...JSON.parse(JSON.stringify(DEFAULT_SETTINGS)), window: JSON.parse(JSON.stringify(DEFAULT_WINDOW)), newWindow: false, control: true };
+  return { ...JSON.parse(JSON.stringify(DEFAULT_SETTINGS)), window: JSON.parse(JSON.stringify(DEFAULT_WINDOW)), newWindow: false, control: true, voice: { enabled: false, method: 'mic-voice-communication' } };
 }
 
 function load() {
@@ -45,6 +45,11 @@ function load() {
       window: pickWindow(raw.window),
       newWindow: !!raw.newWindow, // default off: scrcpy's own window is the default
       control: raw.control !== false, // keyboard & mouse control of the phone (default on)
+      // "My voice (phone mic)": also send the phone's microphone to this computer (default off)
+      voice: {
+        enabled: !!(raw.voice && raw.voice.enabled),
+        method: (raw.voice && typeof raw.voice.method === 'string' && raw.voice.method) || 'mic-voice-communication',
+      },
     };
   } catch {
     return defaults();
