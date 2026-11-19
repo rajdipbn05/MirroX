@@ -53,7 +53,7 @@ test('codec string from SPS', () => {
 
 test('server arguments', () => {
   const args = P.serverArgs({ scid: '0000abcd', settings: { bitrate: 16, maxFps: 120, maxSize: 1920, lowLatency: true }, audio: true });
-  for (const a of ['scid=0000abcd', 'log_level=debug', 'tunnel_forward=true', 'video_codec=h264', 'video_bit_rate=16000000', 'max_fps=120', 'max_size=1920', 'audio_codec=raw', 'video_codec_options=priority:int=0'])
+  for (const a of ['scid=0000abcd', 'log_level=debug', 'tunnel_forward=true', 'video_codec=h264', 'video_bit_rate=16000000', 'max_fps=120', 'max_size=1920', 'audio_codec=raw', 'video_codec_options=bitrate-mode:int=2,priority:int=0'])
     assert.ok(args.includes(a), a);
   assert.ok(P.serverArgs({ scid: '1', settings: { bitrate: 8, maxFps: 60, maxSize: 0 }, audio: false }).includes('audio=false'));
 });
@@ -88,4 +88,11 @@ test("server args: teammates' voice chat (playback) for the MirroX window", () =
   const a = P.serverArgs({ scid: '1', settings: s, audio: true });
   assert.ok(a.includes('audio_source=playback') && a.includes('audio_dup=true') && a.includes('audio_codec=raw'));
   assert.ok(!P.serverArgs({ scid: '1', settings: { ...s, audioSource: 'output' }, audio: true }).some((x) => x.startsWith('audio_source')));
+});
+
+test('encoder options: constant bitrate always, real-time priority in low-delay mode, none on retry', () => {
+  assert.strictEqual(P.videoCodecOptions({ lowLatency: false }), 'bitrate-mode:int=2');
+  assert.strictEqual(P.videoCodecOptions({ lowLatency: true }), 'bitrate-mode:int=2,priority:int=0');
+  assert.strictEqual(P.videoCodecOptions({ lowLatency: true, noCodecOptions: true }), '');
+  assert.ok(!P.serverArgs({ scid: '1', settings: { bitrate: 8, maxFps: 60, maxSize: 0, noCodecOptions: true }, audio: false }).some((a) => a.startsWith('video_codec_options')));
 });

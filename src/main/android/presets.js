@@ -1,6 +1,8 @@
 // Mirroring presets and how settings turn into scrcpy options.
 // Pure functions (no side effects) so they can be unit-tested.
 
+const { videoCodecOptions } = require('../../shared/scrcpy-protocol');
+
 // Choices offered by the Advanced sliders.
 const RESOLUTIONS = [720, 1080, 1280, 1600, 1920, 0]; // 0 = phone's full resolution
 const FPS_CHOICES = [30, 60, 90, 120, 144];
@@ -89,11 +91,10 @@ function buildArgs({ serial, name }, settings, { codecOptions = true } = {}) {
   }
   if (s.screenOff) args.push('--turn-screen-off');
   if (settings.control === false) args.push('--no-control'); // keyboard & mouse control off
-  if (s.lowLatency) {
-    args.push('--video-codec=h264'); // fastest to encode and decode on almost every phone
-    // Ask the phone's encoder for real-time priority. Dropped automatically if the phone rejects it.
-    if (codecOptions) args.push('--video-codec-options=priority:int=0');
-  }
+  args.push('--video-codec=h264'); // fastest to encode and decode on almost every phone
+  // Constant bitrate (+ real-time priority in low-delay mode). Dropped automatically if the phone rejects it.
+  const opts = videoCodecOptions(s);
+  if (codecOptions && opts) args.push(`--video-codec-options=${opts}`);
   return args;
 }
 

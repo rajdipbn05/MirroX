@@ -121,7 +121,7 @@ class Mirror extends EventEmitter {
       if (this.proc !== proc) return; // already handled by 'error'
       this.proc = null;
       // Some phones reject the "real-time priority" request: retry once without it.
-      if (!running && !this.userStopped && codecOptions && s.lowLatency && /codec|encoder|configure/i.test(log)) {
+      if (!running && !this.userStopped && codecOptions && /codec|encoder|configure/i.test(log)) {
         console.error('[mirror] retrying without codec options');
         return this.launch(device, s, false);
       }

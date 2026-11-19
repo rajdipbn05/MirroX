@@ -43,7 +43,11 @@ class MirrorController extends EventEmitter {
     ipcMain.on('mirror:stats', (e, s) => mine(e) && this.emit('stats', { ...s, ...this.qualityInfo() }));
     ipcMain.on('mirror:control', (e, buf) => mine(e) && this.client && this.client.sendControl(Buffer.from(buf)));
     ipcMain.on('mirror:action', (e, a) => mine(e) && this.onAction(a));
-    ipcMain.on('mirror:first-frame', (e) => mine(e) && this.emit('state', { state: 'running' }));
+    ipcMain.on('mirror:first-frame', (e) => {
+      if (!mine(e)) return;
+      this.firstFrameSeen = true;
+      this.emit('state', { state: 'running' });
+    });
     ipcMain.on('mirror:need-key-frame', (e) => mine(e) && this.replay());
   }
 
@@ -60,6 +64,8 @@ class MirrorController extends EventEmitter {
   // device: { serial, name } or { testPort, name } (automated tests); perf: effective preset settings
   async start(device, perf) {
     if (this.running) return;
+    this.device = device;
+    this.firstFrameSeen = false;
     this.starting = true;
     this.cancelled = false;
     this.endInfo = null;
@@ -129,6 +135,16 @@ class MirrorController extends EventEmitter {
     c.on('ended', async (err) => {
       if (this.cancelled) return;
       await new Promise((r) => setTimeout(r, 800)); // let the phone's last log lines arrive
+      // The phone's encoder may reject the quality options: retry once without them.
+      if (!this.firstFrameSeen && this.perf && !this.perf.noCodecOptions && !this.cancelled) {
+        const device = this.device;
+        const perf = { ...this.perf, noCodecOptions: true };
+        this.endInfo = null;
+        this.suppressEndState = true;
+        await this.finish();
+        this.suppressEndState = false;
+        return this.start(device, perf);
+      }
       this.endInfo = {
         state: 'error',
         message: err && err.encoder
@@ -188,7 +204,7 @@ class MirrorController extends EventEmitter {
     const info = this.endInfo || { state: 'stopped' };
     this.endInfo = null;
     this.finishing = false;
-    this.emit('state', info);
+    if (!this.suppressEndState) this.emit('state', info);
   }
 
   // ---------- Windows ----------

@@ -152,6 +152,18 @@ function simple(type) {
   return Buffer.from([type]);
 }
 
+// Options for the phone's video encoder (Android MediaFormat keys):
+//   bitrate-mode=2 (constant bitrate): many phone encoders (e.g. Qualcomm) in the default "variable"
+//     mode send far less than asked — measured 1.5 Mbps of 32 on a Moto g57 power — so the picture
+//     gets blocky. Constant mode makes them use the requested quality.
+//   priority=0 (real-time): lower delay (Gaming / low-delay mode).
+function videoCodecOptions(s) {
+  if (s.noCodecOptions) return '';
+  const opts = ['bitrate-mode:int=2'];
+  if (s.lowLatency) opts.push('priority:int=0');
+  return opts.join(',');
+}
+
 // Options passed to the server on its command line.
 function serverArgs({ scid, settings, audio }) {
   const s = settings;
@@ -166,7 +178,8 @@ function serverArgs({ scid, settings, audio }) {
     'clipboard_autosync=false',
   ];
   if (s.maxSize) args.push(`max_size=${s.maxSize}`);
-  if (s.lowLatency) args.push('video_codec_options=priority:int=0');
+  const codecOptions = videoCodecOptions(s);
+  if (codecOptions) args.push(`video_codec_options=${codecOptions}`);
   if (audio) {
     args.push('audio_codec=raw');
     if (s.audioSource === 'playback') {
@@ -200,4 +213,5 @@ module.exports = {
   setDisplayPower,
   simple,
   serverArgs,
+  videoCodecOptions,
 };
