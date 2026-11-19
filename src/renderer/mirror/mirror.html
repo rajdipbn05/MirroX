@@ -7,8 +7,10 @@
     <link rel="stylesheet" href="mirror.css" />
   </head>
   <body class="mode-normal">
-    <!-- Slim toolbar under the normal Windows title bar -->
+    <!-- Title bar (normal window): drag it like any window; Windows draws min/max/close on the right -->
     <div id="toolbar">
+      <span class="tb-logo" aria-hidden="true"></span>
+      <span id="tb-title">MirroX</span>
       <span id="tb-fps"></span>
       <span class="tb-spacer"></span>
       <button class="tb-btn" data-action="borderless" title="Borderless window (Alt+F)">

@@ -2,8 +2,9 @@
 // and shows the picture in a mirror window. The window can be swapped without dropping the
 // connection, which is how "normal" (real Windows title bar) and "borderless" (no frame) work:
 //
-//   normal      a standard window: Windows' own title bar, move/resize/snap/maximize as usual,
-//               plus a slim MirroX toolbar (Borderless, Fullscreen, Always on top)
+//   normal      a standard window: Windows' own minimize/maximize/close buttons and move/resize/
+//               snap/maximize behaviour, with MirroX's buttons (Borderless, Fullscreen, On top)
+//               and the FPS inside the title bar
 //   borderless  a frameless window; move the mouse to the top edge for a drag handle + buttons
 //   fullscreen  either window made fullscreen; top-edge toolbar, Esc, Alt+F
 //
@@ -184,7 +185,7 @@ class MirrorController extends EventEmitter {
     }
     const anchor = this.getAnchor && this.getAnchor();
     const display = anchor ? screen.getDisplayMatching(anchor) : screen.getPrimaryDisplay();
-    const fit = fitBounds(display.workArea, this.video.width, this.video.height, extra + 40);
+    const fit = fitBounds(display.workArea, this.video.width, this.video.height, extra + 16);
     return { ...fit, height: fit.height + extra };
   }
 
@@ -193,7 +194,10 @@ class MirrorController extends EventEmitter {
     const win = new BrowserWindow({
       ...contentBounds,
       useContentSize: true,
-      frame: !frameless, // normal = real Windows title bar; borderless = no frame
+      frame: !frameless, // borderless = no frame at all
+      // Normal: Windows keeps its own min/max/close buttons, dragging and snapping, while MirroX
+      // draws its buttons into the free space of the title bar.
+      ...(frameless ? {} : { titleBarStyle: 'hidden', titleBarOverlay: { color: '#14161b', symbolColor: '#e8eaee', height: TOOLBAR } }),
       thickFrame: true, // keeps Windows' resize edges and snapping, also without a frame
       resizable: true,
       minWidth: 160,
@@ -305,7 +309,7 @@ class MirrorController extends EventEmitter {
     const extra = this.framed ? TOOLBAR : 0;
     if (flipped) {
       const area = screen.getDisplayMatching(b).workArea;
-      const fit = fitBounds(area, width, height, extra + 40);
+      const fit = fitBounds(area, width, height, extra + 16);
       const h = fit.height + extra;
       this.win.setContentBounds({ width: fit.width, height: h, x: Math.round(b.x + b.width / 2 - fit.width / 2), y: Math.round(b.y + b.height / 2 - h / 2) });
     } else {

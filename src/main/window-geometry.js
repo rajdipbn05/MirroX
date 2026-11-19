@@ -1,6 +1,6 @@
 // Window size/position maths for the mirror window. Pure functions, unit-tested.
 
-const TOOLBAR = 30; // height of the MirroX toolbar under the Windows title bar (normal mode)
+const TOOLBAR = 32; // height of the mirror window's title bar (normal mode), inside the window's content
 
 // Largest size with the video's aspect ratio that fits in `area` (scaled by `fill`), centred.
 // extraH = height not used by the picture (toolbar, and room for the Windows title bar).

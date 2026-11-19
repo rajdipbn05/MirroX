@@ -315,7 +315,7 @@ setInterval(() => {
   framesThisSecond = 0;
   decodeMsSum = 0;
   decodeMsCount = 0;
-  $('tb-fps').textContent = firstFrame ? 'Connecting…' : `${stats.fps} FPS`;
+  $('tb-fps').textContent = firstFrame ? '· Connecting…' : `· ${stats.fps} FPS`;
   if (!firstFrame) ipcRenderer.send('mirror:stats', stats);
 }, 1000);
 
@@ -324,6 +324,7 @@ setInterval(() => {
 ipcRenderer.on('mode', (_e, m) => applyMode(m));
 ipcRenderer.on('control', (_e, on) => setControl(on));
 ipcRenderer.once('init', (_e, o) => {
+  $('tb-title').textContent = o.title || 'MirroX';
   setControl(o.control !== false);
   applyMode(o);
 });
