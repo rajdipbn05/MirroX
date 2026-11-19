@@ -137,7 +137,8 @@ class StreamClient extends EventEmitter {
   async readVideo(reader) {
     const codec = (await reader.read(4)).readUInt32BE(0);
     if (codec === P.CODEC.ERROR) throw Object.assign(new Error('encoder configuration error'), { encoder: true });
-    if (codec !== P.CODEC.H264) throw new Error(`unexpected video codec 0x${codec.toString(16)}`);
+    if (codec !== P.CODEC.H264 && codec !== P.CODEC.H265) throw new Error(`unexpected video codec 0x${codec.toString(16)}`);
+    this.codec = codec === P.CODEC.H265 ? 'h265' : 'h264';
     for (;;) {
       const h = P.parseHeader(await reader.read(P.HEADER_SIZE));
       if (h.session) {

@@ -49,6 +49,10 @@ class MirrorController extends EventEmitter {
       this.emit('state', { state: 'running' });
     });
     ipcMain.on('mirror:need-key-frame', (e) => mine(e) && this.replay());
+    // The laptop can't decode H.265 after all: tell main.js to restart with H.264.
+    ipcMain.on('mirror:decode-failed', (e) => {
+      if (mine(e) && this.perf && this.perf.codec === 'h265') this.emit('notice', { type: 'h265-failed', restart: true, details: 'The video decoder on this computer reported errors with H.265.' });
+    });
   }
 
   get running() {
@@ -121,7 +125,7 @@ class MirrorController extends EventEmitter {
   wireClient(c) {
     c.on('session', (s) => this.onVideoSize(s));
     c.on('video', (h, data) => {
-      const pkt = { config: h.config, key: h.keyFrame, pts: h.pts, data };
+      const pkt = { config: h.config, key: h.keyFrame, pts: h.pts, data, codec: c.codec };
       this.keepForReplay(pkt);
       this.sendToWindow('video', pkt);
     });
@@ -135,10 +139,15 @@ class MirrorController extends EventEmitter {
     c.on('ended', async (err) => {
       if (this.cancelled) return;
       await new Promise((r) => setTimeout(r, 800)); // let the phone's last log lines arrive
-      // The phone's encoder may reject the quality options: retry once without them.
-      if (!this.firstFrameSeen && this.perf && !this.perf.noCodecOptions && !this.cancelled) {
+      // The phone may lack an H.265 encoder, or reject the quality options: retry with H.264,
+      // then without the options.
+      if (!this.firstFrameSeen && this.perf && (this.perf.codec === 'h265' || !this.perf.noCodecOptions) && !this.cancelled) {
         const device = this.device;
-        const perf = { ...this.perf, noCodecOptions: true };
+        let perf;
+        if (this.perf.codec === 'h265') {
+          perf = { ...this.perf, codec: 'h264' };
+          this.emit('notice', { type: 'h265-failed', details: this.serverLog() });
+        } else perf = { ...this.perf, noCodecOptions: true };
         this.endInfo = null;
         this.suppressEndState = true;
         await this.finish();
@@ -166,7 +175,7 @@ class MirrorController extends EventEmitter {
     const enc = /Using video encoder: '([^']+)'/.exec(log);
     const retry = /Retrying with -m(\d+)/.exec(log);
     const constrained = /Applying video encoder constraints/.test(log);
-    const info = { mbps, requestedMbps: this.perf ? this.perf.bitrate : null };
+    const info = { mbps, requestedMbps: this.perf ? this.perf.bitrate : null, format: this.client && this.client.codec === 'h265' ? 'H.265' : 'H.264' };
     if (enc) info.encoder = enc[1];
     if (retry) info.shrunk = `the phone could not encode full size and dropped to ${retry[1]} px`;
     else if (constrained) info.shrunk = "the phone resized the picture to fit its video encoder's limits";

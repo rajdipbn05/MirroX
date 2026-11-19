@@ -6,6 +6,7 @@ const SCRCPY_VERSION = '5.0.1';
 
 const CODEC = {
   H264: 0x68323634, // "h264"
+  H265: 0x68323635, // "h265"
   RAW: 0x00726177, // "raw" (16-bit PCM, 48 kHz, stereo)
   DISABLED: 0, // stream explicitly disabled by the phone (e.g. audio on Android < 11)
   ERROR: 1, // configuration error on the phone
@@ -164,6 +165,47 @@ function videoCodecOptions(s) {
   return opts.join(',');
 }
 
+// ---------- H.265 helpers ----------
+
+// Removes H.264/H.265 "emulation prevention" bytes (00 00 03 -> 00 00).
+function unescapeRbsp(nal) {
+  const out = [];
+  for (let i = 0; i < nal.length; i++) {
+    if (i >= 2 && nal[i] === 3 && nal[i - 1] === 0 && nal[i - 2] === 0) continue;
+    out.push(nal[i]);
+  }
+  return Buffer.from(out);
+}
+
+// WebCodecs codec string ("hev1.P.C.Tlevel.constraints") from the SPS in an H.265 config packet.
+function hevcCodecString(configPacket) {
+  const raw = splitNals(configPacket).find((n) => ((n[0] >> 1) & 0x3f) === 33);
+  if (!raw) return 'hev1.1.6.L120.90'; // Main profile, level 4 as a safe default
+  const sps = unescapeRbsp(raw);
+  // sps[0..1] = NAL header, sps[2] = vps id / max sub layers / nesting, then profile_tier_level:
+  const ptl = sps.subarray(3);
+  const space = ptl[0] >> 6;
+  const tier = (ptl[0] >> 5) & 1;
+  const profile = ptl[0] & 0x1f;
+  let compat = ptl.readUInt32BE(1);
+  let reversed = 0;
+  for (let i = 0; i < 32; i++) {
+    reversed = (reversed << 1) | (compat & 1);
+    compat >>>= 1;
+  }
+  const constraints = [...ptl.subarray(5, 11)];
+  while (constraints.length && constraints[constraints.length - 1] === 0) constraints.pop();
+  const level = ptl[11];
+  const spaceStr = space ? String.fromCharCode(64 + space) : '';
+  const cons = constraints.map((b) => b.toString(16).toUpperCase().padStart(2, '0')).join('.');
+  return `hev1.${spaceStr}${profile}.${(reversed >>> 0).toString(16).toUpperCase()}.${tier ? 'H' : 'L'}${level}${cons ? '.' + cons : ''}`;
+}
+
+// Codec string for either format.
+function codecString(codec, configPacket) {
+  return codec === 'h265' ? hevcCodecString(configPacket) : h264CodecString(configPacket);
+}
+
 // Options passed to the server on its command line.
 function serverArgs({ scid, settings, audio }) {
   const s = settings;
@@ -171,7 +213,7 @@ function serverArgs({ scid, settings, audio }) {
     `scid=${scid}`,
     'log_level=debug', // so the phone reports which video encoder it uses (quality diagnostics)
     'tunnel_forward=true',
-    'video_codec=h264',
+    `video_codec=${s.codec === 'h265' ? 'h265' : 'h264'}`,
     `video_bit_rate=${s.bitrate * 1000000}`,
     `max_fps=${s.maxFps}`,
     'stay_awake=true',
@@ -214,4 +256,6 @@ module.exports = {
   simple,
   serverArgs,
   videoCodecOptions,
+  hevcCodecString,
+  codecString,
 };

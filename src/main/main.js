@@ -16,6 +16,15 @@ const watcher = new DeviceWatcher();
 const classic = new Mirror();
 let escExit = null; // Windows: Esc leaves fullscreen in scrcpy's window
 const fallbackToOutput = new Set(); // phones where game+voice-chat capture failed (this session)
+const fallbackToH264 = new Set(); // phones/computers where H.265 didn't work (this session)
+let hevcDecodeSupported = null; // can this computer decode H.265? (checked by the main screen)
+
+// Picture format: H.265 only when asked for and known to work, otherwise H.264.
+function codecFor(phone, engine) {
+  if (settings.codec !== 'h265' || fallbackToH264.has(phone.serial)) return 'h264';
+  if (engine === controller && hevcDecodeSupported === false) return 'h264'; // MirroX window decodes itself
+  return 'h265';
+}
 
 // Which phone sound to capture:
 //   'playback' (Android 13+): game sound AND teammates' in-game voice chat
@@ -88,7 +97,14 @@ function startMirror() {
   const testPort = Number(process.env.MIRROX_TEST_MIRROR_PORT) || 0; // automated tests only
   if (!testPort && !(s && s.ready)) return;
   if ((active && active.running) || controller.running || classic.running) return;
-  const perf = { ...presets.effectiveSettings(settings), ...(testPort ? {} : soundOptions(s)) };
+  const engine = testPort ? controller : engineFor();
+  const perf = {
+    ...presets.effectiveSettings(settings),
+    ...(testPort ? {} : soundOptions(s)),
+    codec: testPort ? process.env.MIRROX_TEST_CODEC || 'h264' : codecFor(s, engine),
+  };
+  if (!testPort && settings.codec === 'h265' && perf.codec === 'h264' && engine === controller && hevcDecodeSupported === false)
+    send('notice', { message: "This computer can't decode H.265 in the MirroX window, so the picture uses H.264. (The standard window can use H.265.)" });
   lastPerf = perf;
   active = testPort ? controller : engineFor();
   if (active === classic) {
@@ -115,9 +131,18 @@ app.whenReady().then(() => {
     engine.on('state', (s) => send('mirror-state', s));
     // Game + voice-chat capture failed on this phone: switch to game sound only and restart.
     engine.on('notice', (n) => {
+      if (n.type === 'h265-failed') {
+        if (watcher.current) fallbackToH264.add(watcher.current.serial);
+        send('notice', { message: 'H.265 did not work with this phone, so MirroX switched to H.264 (the normal picture format).', details: n.details });
+        if (n.restart) {
+          engine.once('state', (st) => st.state !== 'starting' && setTimeout(startMirror, 800));
+          engine.stop();
+        }
+        return;
+      }
       if (n.type !== 'playback-failed' || !lastPerf || lastPerf.audioSource !== 'playback' || !watcher.current) return;
       fallbackToOutput.add(watcher.current.serial);
-      send('sound-notice', {
+      send('notice', {
         message: "This phone didn't allow capturing teammates' voice chat, so MirroX switched to game sound only. Mirroring restarts now.",
         details: n.details,
       });
@@ -141,6 +166,7 @@ app.whenReady().then(() => {
     window: controller.modeInfo(),
     control: settings.control,
     sound: settings.sound,
+    codec: settings.codec,
     presets: presets.PRESETS,
     choices: {
       resolutions: presets.RESOLUTIONS,
@@ -183,6 +209,18 @@ app.whenReady().then(() => {
     saveSettings();
     controller.setControl(settings.control);
     return { control: settings.control, restart: classic.running };
+  });
+
+  // "Sharper picture (H.265)" on/off (applies on the next start) and whether this computer can decode it.
+  ipcMain.handle('set-codec', (_e, codec) => {
+    settings.codec = codec === 'h265' ? 'h265' : 'h264';
+    fallbackToH264.clear(); // let the user try again
+    saveSettings();
+    const mirroring = (active && active.running) || classic.running || controller.running;
+    return { codec: settings.codec, restart: mirroring };
+  });
+  ipcMain.on('hevc-support', (_e, supported) => {
+    hevcDecodeSupported = !!supported;
   });
 
   // Sound options: teammates' voice chat on/off, also play on the phone. Apply on the next start.

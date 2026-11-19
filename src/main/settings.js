@@ -33,7 +33,7 @@ function file() {
 }
 
 function defaults() {
-  return { ...JSON.parse(JSON.stringify(DEFAULT_SETTINGS)), window: JSON.parse(JSON.stringify(DEFAULT_WINDOW)), newWindow: false, control: true, sound: { voiceChat: true, alsoOnPhone: false } };
+  return { ...JSON.parse(JSON.stringify(DEFAULT_SETTINGS)), window: JSON.parse(JSON.stringify(DEFAULT_WINDOW)), newWindow: false, control: true, codec: 'h264', sound: { voiceChat: true, alsoOnPhone: false } };
 }
 
 function load() {
@@ -45,6 +45,7 @@ function load() {
       window: pickWindow(raw.window),
       newWindow: !!raw.newWindow, // default off: scrcpy's own window is the default
       control: raw.control !== false, // keyboard & mouse control of the phone (default on)
+      codec: raw.codec === 'h265' ? 'h265' : 'h264', // "Sharper picture (H.265)" (default off)
       // Phone sound: include teammates' in-game voice chat (Android 13+, default on);
       // also keep playing the sound on the phone (default off: sound plays on this computer)
       sound: {

@@ -50,7 +50,7 @@ class Mirror extends EventEmitter {
     this.userStopped = false;
     this.stats = {};
     // Options that sanitize() doesn't keep (they aren't preset values) are carried separately.
-    const s = { ...sanitize(settings), control: settings.control, audioSource: settings.audioSource, audioDup: settings.audioDup };
+    const s = { ...sanitize(settings), control: settings.control, audioSource: settings.audioSource, audioDup: settings.audioDup, codec: settings.codec };
     this.emit('state', { state: 'starting' });
     try {
       await this.applyOrientation(device.serial, s.orientation);
@@ -121,6 +121,11 @@ class Mirror extends EventEmitter {
       if (this.proc !== proc) return; // already handled by 'error'
       this.proc = null;
       // Some phones reject the "real-time priority" request: retry once without it.
+      // No H.265 encoder on this phone: carry on with H.264 and say so.
+      if (!running && !this.userStopped && s.codec === 'h265') {
+        this.emit('notice', { type: 'h265-failed', details: command + log.slice(-3000) });
+        return this.launch(device, { ...s, codec: 'h264' }, codecOptions);
+      }
       if (!running && !this.userStopped && codecOptions && /codec|encoder|configure/i.test(log)) {
         console.error('[mirror] retrying without codec options');
         return this.launch(device, s, false);

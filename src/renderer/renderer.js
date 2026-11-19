@@ -162,6 +162,7 @@ function liveNote() {
   if (stats.skipped) parts.push(`${stats.skipped} frames dropped by this computer`);
   if (stats.decodeMs != null) parts.push(`decoding ${stats.decodeMs} ms`);
   if (stats.mbps != null) parts.push(`${stats.mbps} Mbps arriving from the phone (asked for ${stats.requestedMbps})`);
+  if (stats.format) parts.push(`format ${stats.format}`);
   if (stats.encoder) parts.push(`phone encoder: ${stats.encoder}`);
   if (stats.shrunk) parts.push(`⚠ ${stats.shrunk}`);
   return parts.length ? `${RUNNING_NOTE}\nLive: ${parts.join(' · ')}` : RUNNING_NOTE;
@@ -254,7 +255,25 @@ async function setSound(v) {
 }
 $('sound-voicechat').addEventListener('click', () => setSound({ voiceChat: !soundCfg.voiceChat }));
 $('sound-phone').addEventListener('click', () => setSound({ alsoOnPhone: !soundCfg.alsoOnPhone }));
-window.mirrox.onSoundNotice((n) => showNote(n.message, true, n.details));
+window.mirrox.onNotice((n) => showNote(n.message, true, n.details));
+
+// ---------- Sharper picture (H.265) ----------
+$('h265').addEventListener('change', async () => {
+  const r = await window.mirrox.setCodec($('h265').checked ? 'h265' : 'h264');
+  $('h265').checked = r.codec === 'h265';
+  if (r.restart) {
+    showNote('The picture format changes when mirroring restarts.');
+    $('restart-btn').hidden = false;
+  }
+});
+// Can this computer decode H.265 (needed by the MirroX window)?
+(async () => {
+  let ok = false;
+  try {
+    ok = !!(await VideoDecoder.isConfigSupported({ codec: 'hev1.1.6.L120.90', hardwareAcceleration: 'no-preference' })).supported;
+  } catch {}
+  window.mirrox.reportHevcSupport(ok);
+})();
 
 // ---------- Keyboard & mouse control ----------
 let controlOn = true;
@@ -324,6 +343,7 @@ window.mirrox.getState().then((st) => {
   renderControl();
   soundCfg = st.sound || soundCfg;
   renderSound();
+  $('h265').checked = st.codec === 'h265';
   renderSettings();
   if (st.phone) phone = st.phone;
   render();

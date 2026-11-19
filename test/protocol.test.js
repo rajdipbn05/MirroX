@@ -96,3 +96,18 @@ test('encoder options: constant bitrate always, real-time priority in low-delay 
   assert.strictEqual(P.videoCodecOptions({ lowLatency: true, noCodecOptions: true }), '');
   assert.ok(!P.serverArgs({ scid: '1', settings: { bitrate: 8, maxFps: 60, maxSize: 0, noCodecOptions: true }, audio: false }).some((a) => a.startsWith('video_codec_options')));
 });
+
+test('H.265: codec string read from a real H.265 stream header', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const clip = fs.readFileSync(path.join(__dirname, 'fixtures', 'portrait-540x1200.h265'));
+  assert.strictEqual(P.hevcCodecString(clip), 'hev1.1.6.L120.90');
+  assert.strictEqual(P.codecString('h265', clip), 'hev1.1.6.L120.90');
+  assert.match(P.codecString('h264', Buffer.from([0, 0, 0, 1, 0x67, 0x64, 0, 0x2a])), /^avc1\./);
+});
+
+test('H.265: server asks the phone for H.265 only when chosen', () => {
+  const base = { bitrate: 8, maxFps: 60, maxSize: 0 };
+  assert.ok(P.serverArgs({ scid: '1', settings: { ...base, codec: 'h265' }, audio: false }).includes('video_codec=h265'));
+  assert.ok(P.serverArgs({ scid: '1', settings: base, audio: false }).includes('video_codec=h264'));
+});

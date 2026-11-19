@@ -72,3 +72,9 @@ test("teammates' voice chat: playback source (+ optional keep playing on phone)"
   assert.ok(!o.some((x) => x.startsWith('--audio-source')) && !o.includes('--audio-dup'));
   assert.ok(!buildArgs(dev, { ...base, audio: false, audioSource: 'playback' }).some((x) => x.startsWith('--audio-source')));
 });
+
+test('H.265 sharper picture option (standard window)', () => {
+  const base = effectiveSettings({ preset: 'gaming' });
+  assert.ok(buildArgs(dev, { ...base, codec: 'h265' }).includes('--video-codec=h265'));
+  assert.ok(buildArgs(dev, base).includes('--video-codec=h264'));
+});

@@ -91,7 +91,9 @@ function buildArgs({ serial, name }, settings, { codecOptions = true } = {}) {
   }
   if (s.screenOff) args.push('--turn-screen-off');
   if (settings.control === false) args.push('--no-control'); // keyboard & mouse control off
-  args.push('--video-codec=h264'); // fastest to encode and decode on almost every phone
+  // H.264: fastest, works everywhere. H.265 ("Sharper picture"): better quality per Mbps and often a
+  // higher size limit on the phone's encoder.
+  args.push(`--video-codec=${settings.codec === 'h265' ? 'h265' : 'h264'}`);
   // Constant bitrate (+ real-time priority in low-delay mode). Dropped automatically if the phone rejects it.
   const opts = videoCodecOptions(s);
   if (codecOptions && opts) args.push(`--video-codec-options=${opts}`);

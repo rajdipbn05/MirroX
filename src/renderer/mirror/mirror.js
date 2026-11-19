@@ -41,6 +41,7 @@ let decoder = null;
 let decoderCodec = null;
 let decoderConfig = null; // the SPS/PPS the decoder was set up with
 let pendingConfig = null;
+let pendingCodec = 'h264';
 let waitingKeyFrame = true;
 let decoderErrors = 0;
 let lastKeyFrameRequest = 0;
@@ -60,6 +61,7 @@ function makeDecoder(codec, config) {
       console.error('decoder error', e);
       decoderErrors++;
       window.__decoderErrors = decoderErrors; // read by automated tests
+      if (decoderErrors === 3 && pendingCodec === 'h265') ipcRenderer.send('mirror:decode-failed');
       waitingKeyFrame = true;
       decoderConfig = null; // re-create on the next config
       // Replay from the last key frame (at most every 2 s, so a bad stream can't loop).
@@ -105,11 +107,12 @@ ipcRenderer.on('video', (_e, p) => {
   const data = Buffer.from(p.data.buffer, p.data.byteOffset, p.data.byteLength);
   if (p.config) {
     pendingConfig = Buffer.from(data);
+    pendingCodec = p.codec || 'h264';
     return;
   }
   let payload = data;
   if (pendingConfig) {
-    const codec = P.h264CodecString(pendingConfig);
+    const codec = P.codecString(pendingCodec, pendingConfig);
     const changed = !decoderConfig || !pendingConfig.equals(decoderConfig);
     if (!decoder || decoder.state === 'closed' || codec !== decoderCodec || changed) {
       makeDecoder(codec, pendingConfig);
