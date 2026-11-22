@@ -79,7 +79,8 @@ class StreamClient extends EventEmitter {
   }
 
   // Resolves once all sockets are connected and the device name is received.
-  async connect(port, { audio }) {
+  async connect(port, { audio, soundOnly = false }) {
+    if (soundOnly) return this.connectSoundOnly(port);
     this.step = 'waiting for the phone to start (video connection)';
     const first = await withTimeout(this.connectFirst(port), 20000, this.step);
     const videoReader = first.reader;
@@ -105,6 +106,19 @@ class StreamClient extends EventEmitter {
     this.step = 'streaming';
     this.readVideo(videoReader).catch((err) => this.end(err));
     if (audioReader) this.readAudio(audioReader).catch(() => {}); // sound failing never stops the picture
+    return this.deviceName;
+  }
+
+  // Sound-only session: the single (audio) socket gets the dummy byte and the phone name.
+  async connectSoundOnly(port) {
+    this.step = 'waiting for the phone to start (sound connection)';
+    const first = await withTimeout(this.connectFirst(port), 20000, this.step);
+    this.step = 'waiting for the phone name';
+    this.deviceName = P.parseDeviceName(await withTimeout(first.reader.read(P.DEVICE_NAME_LENGTH), 10000, this.step));
+    this.step = 'streaming';
+    this.readAudio(first.reader)
+      .then(() => this.end(new Error('the phone did not send any sound')))
+      .catch((err) => this.end(err));
     return this.deviceName;
   }
 

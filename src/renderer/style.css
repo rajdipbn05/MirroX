@@ -184,3 +184,13 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .toggle.classic { color: var(--muted); font-size: 13px; }
 
 .sound-hint { margin: -4px 0 0; font-size: 12px; color: var(--faint); }
+
+/* Game sound for OBS */
+.obs-box { padding: 10px 12px; border-radius: 10px; background: var(--card-2); border: 1px solid var(--border); font-size: 13px; color: var(--muted); }
+.obs-box p { margin: 0 0 6px; }
+.obs-box b { color: var(--text); font-weight: 600; }
+.obs-status.on { color: var(--green); }
+.obs-status.error { color: var(--red); }
+.obs-url { display: flex; align-items: center; gap: 8px; }
+.obs-url code { flex: 1; padding: 6px 8px; border-radius: 6px; background: var(--bg); color: var(--text); font: 13px Consolas, "Cascadia Mono", monospace; user-select: text; }
+button.secondary.small { padding: 5px 10px; font-size: 13px; }

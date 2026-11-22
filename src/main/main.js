@@ -33,15 +33,32 @@ function codecFor(phone, engine) {
 //   'playback' (Android 13+): game sound AND teammates' in-game voice chat
 //   'output'   (older phones, or if playback fails): game sound only (voice chat is excluded)
 function soundOptions(phone) {
+  // Hear on the phone: the mirror itself carries no sound; a separate sound-only connection
+  // keeps the sound playing on the phone and sends a copy to OBS (see startSoundTapIfWanted).
+  if (settings.sound.hearOn === 'phone') return { audio: false };
   const major = parseInt(String(phone.androidVersion || ''), 10);
   const canPlayback = Number.isFinite(major) && major >= 13;
   const playback = settings.sound.voiceChat && canPlayback && !fallbackToOutput.has(phone.serial);
-  return { audioSource: playback ? 'playback' : 'output', audioDup: playback && settings.sound.alsoOnPhone };
+  return { audioSource: playback ? 'playback' : 'output', audioDup: false };
+}
+
+// "Hear game sound on: Phone" — game sound (with teammates' voice chat) keeps playing on the
+// phone, and MirroX passes a copy to OBS through the local link.
+const { SoundTap } = require('./android/sound-tap');
+const { ObsAudioServer } = require('./obs-audio');
+const soundTap = new SoundTap();
+const obsAudio = new ObsAudioServer();
+soundTap.on('pcm', (pcm) => obsAudio.push(pcm));
+let mirroringSerial = null;
+function startSoundTapIfWanted() {
+  if (settings.sound.hearOn === 'phone' && mirroringSerial && !soundTap.running) soundTap.start({ serial: mirroringSerial });
 }
 
 // scrcpy's window has no "Esc exits fullscreen" of its own: add it while mirroring (Windows).
 function startEscExit(pid) {
   stopEscExit();
+  soundTap.stop();
+  obsAudio.stop();
   if (process.platform !== 'win32' || !pid) return;
   const { EscExit } = require('./platform/win-keys');
   escExit = new EscExit(pid);
@@ -110,6 +127,7 @@ function startMirror() {
   if (!testPort && settings.codec === 'h265' && perf.codec === 'h264' && engine === controller && hevcDecodeSupported === false)
     send('notice', { message: "This computer can't decode H.265 in the MirroX window, so the picture uses H.264. (The standard window can use H.265.)" });
   lastPerf = perf;
+  mirroringSerial = testPort ? null : s.serial;
   active = testPort ? controller : engineFor();
   if (active === classic) {
     const w = controller.modeInfo();
@@ -160,6 +178,13 @@ app.whenReady().then(() => {
       engine.stop();
     });
     engine.on('stats', (s) => send('mirror-stats', s));
+    engine.on('state', (st) => {
+      if (st.state === 'running') startSoundTapIfWanted();
+      if (st.state === 'stopped' || st.state === 'error') {
+        soundTap.stop();
+        mirroringSerial = null;
+      }
+    });
   }
   controller.on('window', (w) => send('window-state', w));
 
@@ -176,6 +201,7 @@ app.whenReady().then(() => {
     window: controller.modeInfo(),
     control: settings.control,
     sound: settings.sound,
+    obsUrl: obsAudio.url(),
     codec: settings.codec,
     presets: presets.PRESETS,
     choices: {
@@ -236,7 +262,7 @@ app.whenReady().then(() => {
   // Sound options: teammates' voice chat on/off, also play on the phone. Apply on the next start.
   ipcMain.handle('set-sound', (_e, v) => {
     if (typeof v.voiceChat === 'boolean') settings.sound.voiceChat = v.voiceChat;
-    if (typeof v.alsoOnPhone === 'boolean') settings.sound.alsoOnPhone = v.alsoOnPhone;
+    if (v.hearOn === 'phone' || v.hearOn === 'computer') settings.sound.hearOn = v.hearOn;
     if (v.voiceChat) fallbackToOutput.clear(); // let the user try again
     saveSettings();
     const mirroring = (active && active.running) || classic.running || controller.running;
@@ -267,6 +293,13 @@ app.whenReady().then(() => {
     return result;
   });
 
+  // Game sound for OBS (local link), and the sound-only connection's status.
+  obsAudio.start();
+  soundTap.on('state', (st) => send('sound-state', st));
+
+  // Automated tests: sound-only connection to a pretend phone feeding the OBS link.
+  if (process.env.MIRROX_TEST_SOUND_PORT) soundTap.start({ testPort: Number(process.env.MIRROX_TEST_SOUND_PORT) });
+
   // Automated tests: Esc-exits-fullscreen on a stand-in window (scripts/smoke-test.js --esc).
   if (process.env.MIRROX_TEST_ESC_PID) startEscExit(Number(process.env.MIRROX_TEST_ESC_PID));
 
@@ -279,6 +312,8 @@ app.on('window-all-closed', () => app.quit());
 app.on('before-quit', () => {
   watcher.stop();
   stopEscExit();
+  soundTap.stop();
+  obsAudio.stop();
   stopMirror();
   // Stop the background ADB helper so it doesn't keep running after MirroX closes.
   adb(['kill-server'], { timeout: 3000 }).catch(() => {});

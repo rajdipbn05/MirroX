@@ -60,9 +60,23 @@
         <div class="window-row" role="group" aria-label="Sound">
           <span class="window-label">Sound</span>
           <button class="chip" id="sound-voicechat" aria-pressed="true" title="Bring your teammates' in-game voice chat to this computer together with the game sound (Android 13 or newer)">🎧 Teammates' voice chat: On</button>
-          <button class="chip" id="sound-phone" aria-pressed="false" title="Keep the sound playing on the phone too (otherwise it plays only on this computer)">📱 Also play on phone: Off</button>
         </div>
-        <p class="sound-hint">Your own voice for a stream: add your laptop mic or earphone mic in OBS. Talk to your team through the phone as usual.</p>
+        <div class="window-row" role="radiogroup" aria-label="Hear game sound on">
+          <span class="window-label">Hear on</span>
+          <button class="chip" id="hear-phone" role="radio" aria-pressed="false" title="Game sound plays in your phone earphones (no delay). Your stream gets it through the OBS link below.">📱 Phone</button>
+          <button class="chip" id="hear-computer" role="radio" aria-pressed="true" title="Game sound plays on this computer (and OBS records it as Desktop Audio)">💻 This computer</button>
+        </div>
+        <div class="obs-box" id="obs-box" hidden>
+          <p class="obs-status" id="obs-status"></p>
+          <p><b>Stream the game sound:</b> in OBS, add a <b>Browser Source</b> with this address and tick <b>"Control audio via OBS"</b>:</p>
+          <div class="obs-url"><code id="obs-url"></code><button class="secondary small" id="obs-copy">Copy</button></div>
+          <div class="details-row" id="sdetails-row" hidden>
+            <button class="link" id="sdetails-toggle">Show details</button>
+            <button class="link" id="sdetails-copy" hidden>Copy details</button>
+          </div>
+          <pre class="details" id="sdetails" hidden></pre>
+        </div>
+        <p class="sound-hint" id="sound-hint">Your own voice for a stream: add your laptop mic in OBS. Talk to your team through the phone as usual.</p>
         <button class="link" id="adv-toggle" aria-expanded="false">Advanced settings ▸</button>
         <div class="advanced" id="advanced" hidden>
           <label class="slider">

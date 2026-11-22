@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld('mirrox', {
   setControl: (on) => ipcRenderer.invoke('set-control', on),
   setSound: (v) => ipcRenderer.invoke('set-sound', v),
   onNotice: (cb) => ipcRenderer.on('notice', (_e, s) => cb(s)),
+  onSoundState: (cb) => ipcRenderer.on('sound-state', (_e, s) => cb(s)),
   setCodec: (c) => ipcRenderer.invoke('set-codec', c),
   reportHevcSupport: (ok) => ipcRenderer.send('hevc-support', ok),
   copyText: (text) => ipcRenderer.invoke('copy-text', text),

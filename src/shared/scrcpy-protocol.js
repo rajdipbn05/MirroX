@@ -209,6 +209,13 @@ function codecString(codec, configPacket) {
 // Options passed to the server on its command line.
 function serverArgs({ scid, settings, audio }) {
   const s = settings;
+  if (s.soundOnly) {
+    // Sound only (used to send the game sound to OBS while it keeps playing on the phone).
+    const args = [`scid=${scid}`, 'log_level=info', 'tunnel_forward=true', 'video=false', 'control=false', 'audio_codec=raw'];
+    if (s.audioSource === 'playback') args.push('audio_source=playback');
+    if (s.audioDup) args.push('audio_dup=true');
+    return args;
+  }
   const args = [
     `scid=${scid}`,
     'log_level=debug', // so the phone reports which video encoder it uses (quality diagnostics)

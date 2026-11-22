@@ -235,18 +235,36 @@ $('win-fullscreen').addEventListener('click', () => setWindow({ mode: windowStat
 $('win-borderless').addEventListener('click', () => setWindow({ mode: windowState.mode === 'borderless' ? 'normal' : 'borderless' }));
 $('win-top').addEventListener('click', () => setWindow({ alwaysOnTop: !windowState.alwaysOnTop }));
 $('newWindow').addEventListener('change', () => saveSettings({ preset: cfg.settings.preset, newWindow: $('newWindow').checked }));
-// ---------- Sound: teammates' voice chat, also play on phone ----------
-let soundCfg = { voiceChat: true, alsoOnPhone: false };
+// ---------- Sound: teammates' voice chat, where to hear the game ----------
+let soundCfg = { voiceChat: true, hearOn: 'computer' };
+let soundState = { state: 'off' };
+const setSoundDetails = detailsBox('s');
 function renderSound() {
-  $('sound-voicechat').setAttribute('aria-pressed', String(soundCfg.voiceChat));
-  $('sound-voicechat').textContent = `🎧 Teammates' voice chat: ${soundCfg.voiceChat ? 'On' : 'Off'}`;
-  $('sound-phone').setAttribute('aria-pressed', String(soundCfg.alsoOnPhone));
-  $('sound-phone').textContent = `📱 Also play on phone: ${soundCfg.alsoOnPhone ? 'On' : 'Off'}`;
-  $('sound-phone').disabled = !soundCfg.voiceChat; // only possible with the voice-chat capture
+  const phone = soundCfg.hearOn === 'phone';
+  $('sound-voicechat').setAttribute('aria-pressed', String(phone || soundCfg.voiceChat));
+  $('sound-voicechat').textContent = `🎧 Teammates' voice chat: ${phone || soundCfg.voiceChat ? 'On' : 'Off'}`;
+  $('sound-voicechat').disabled = phone; // always included when hearing on the phone
+  $('hear-phone').setAttribute('aria-pressed', String(phone));
+  $('hear-computer').setAttribute('aria-pressed', String(!phone));
+  $('obs-box').hidden = !phone;
+  $('sound-hint').textContent = phone
+    ? 'Plug your earphones into the phone. Your own voice for the stream: add your laptop mic in OBS.'
+    : 'Wear earphones on this computer. Your own voice for a stream: add your laptop mic in OBS. Talk to your team through the phone as usual.';
+  const st = $('obs-status');
+  st.className = 'obs-status';
+  if (soundState.state === 'on') {
+    st.textContent = '● Game sound is being sent to the OBS link.';
+    st.classList.add('on');
+  } else if (soundState.state === 'starting') st.textContent = 'Connecting the game sound…';
+  else if (soundState.state === 'error') {
+    st.textContent = soundState.message;
+    st.classList.add('error');
+  } else st.textContent = 'The game sound reaches OBS while mirroring.';
+  setSoundDetails(soundState.state === 'error' ? soundState.details : null);
 }
 async function setSound(v) {
   const r = await window.mirrox.setSound(v);
-  soundCfg = { voiceChat: r.voiceChat, alsoOnPhone: r.alsoOnPhone };
+  soundCfg = { voiceChat: r.voiceChat, hearOn: r.hearOn };
   renderSound();
   if (r.restart) {
     showNote('Sound changes apply when mirroring restarts.');
@@ -254,7 +272,17 @@ async function setSound(v) {
   }
 }
 $('sound-voicechat').addEventListener('click', () => setSound({ voiceChat: !soundCfg.voiceChat }));
-$('sound-phone').addEventListener('click', () => setSound({ alsoOnPhone: !soundCfg.alsoOnPhone }));
+$('hear-phone').addEventListener('click', () => soundCfg.hearOn !== 'phone' && setSound({ hearOn: 'phone' }));
+$('hear-computer').addEventListener('click', () => soundCfg.hearOn !== 'computer' && setSound({ hearOn: 'computer' }));
+$('obs-copy').addEventListener('click', async () => {
+  await window.mirrox.copyText($('obs-url').textContent);
+  $('obs-copy').textContent = 'Copied ✓';
+  setTimeout(() => ($('obs-copy').textContent = 'Copy'), 1500);
+});
+window.mirrox.onSoundState((st) => {
+  soundState = st;
+  renderSound();
+});
 window.mirrox.onNotice((n) => showNote(n.message, true, n.details));
 
 // ---------- Sharper picture (H.265) ----------
@@ -348,6 +376,7 @@ window.mirrox.getState().then((st) => {
   controlOn = st.control !== false;
   renderControl();
   soundCfg = st.sound || soundCfg;
+  $('obs-url').textContent = st.obsUrl || '';
   renderSound();
   $('h265').checked = st.codec === 'h265';
   renderSettings();

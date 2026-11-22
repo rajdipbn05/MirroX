@@ -5,7 +5,8 @@
 //   connection 3 = control (every message received is logged as JSON lines to stdout)
 // The video plays the portrait test clip, then "rotates" to the landscape clip, in a loop.
 //
-// Usage: node scripts/fake-phone-server.js <port>
+// Usage: node scripts/fake-phone-server.js <port> [sound-only]
+//   sound-only: a single connection carrying only sound (dummy byte, device name, then PCM)
 
 const fs = require('fs');
 const net = require('net');
@@ -160,8 +161,16 @@ function serveControl(sock) {
 
 let count = 0;
 let audioSock = null;
+const soundOnly = process.argv[3] === 'sound-only';
 const server = net.createServer((sock) => {
   sock.on('error', () => {});
+  if (soundOnly) {
+    sock.write(Buffer.from([0])); // dummy byte
+    const name = Buffer.alloc(64);
+    name.write('Fake Test Phone');
+    sock.write(name);
+    return serveAudio(sock);
+  }
   const n = count++ % 3;
   if (n === 0) serveVideo(sock);
   else if (n === 1) audioSock = sock;

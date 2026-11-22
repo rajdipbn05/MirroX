@@ -16,7 +16,7 @@ const { SCRCPY_VERSION, serverArgs } = require('../../shared/scrcpy-protocol');
 
 const DEVICE_SERVER_PATH = '/data/local/tmp/mirrox-server.jar';
 
-function freePort(start = 27183) {
+function freePort(start = 27300) {
   return new Promise((resolve, reject) => {
     const tryPort = (p) => {
       if (p > start + 100) return reject(new Error('No free local port'));

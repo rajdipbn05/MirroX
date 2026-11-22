@@ -33,7 +33,7 @@ function file() {
 }
 
 function defaults() {
-  return { ...JSON.parse(JSON.stringify(DEFAULT_SETTINGS)), window: JSON.parse(JSON.stringify(DEFAULT_WINDOW)), newWindow: false, control: true, codec: 'h264', shortcut: {}, sound: { voiceChat: true, alsoOnPhone: false } };
+  return { ...JSON.parse(JSON.stringify(DEFAULT_SETTINGS)), window: JSON.parse(JSON.stringify(DEFAULT_WINDOW)), newWindow: false, control: true, codec: 'h264', shortcut: {}, sound: { voiceChat: true, hearOn: 'computer' } };
 }
 
 function load() {
@@ -52,7 +52,9 @@ function load() {
       // also keep playing the sound on the phone (default off: sound plays on this computer)
       sound: {
         voiceChat: !(raw.sound && raw.sound.voiceChat === false),
-        alsoOnPhone: !!(raw.sound && raw.sound.alsoOnPhone),
+        // Where the player hears the game: 'computer' (plays here) or 'phone' (phone earphones, no
+        // delay; the stream gets the sound through the OBS link). Older "also play on phone" = phone.
+        hearOn: raw.sound && (raw.sound.hearOn === 'phone' || raw.sound.alsoOnPhone) ? 'phone' : 'computer',
       },
     };
   } catch {
